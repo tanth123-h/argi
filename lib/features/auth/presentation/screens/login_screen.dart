@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:chaona_app/app/theme.dart';
 import 'package:chaona_app/features/auth/presentation/providers/auth_provider.dart';
+import 'package:chaona_app/features/auth/domain/auth_input_validator.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -131,15 +132,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       controller: _identifierCtrl,
                       keyboardType: TextInputType.emailAddress,
                       decoration: const InputDecoration(
-                        labelText: 'อีเมล หรือ เบอร์โทรศัพท์',
+                        labelText: 'อีเมล',
                         prefixIcon: Icon(Icons.person_outline),
                       ),
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) {
-                          return 'กรุณากรอกอีเมลหรือเบอร์โทรศัพท์';
-                        }
-                        return null;
-                      },
+                      validator: AuthInputValidator.emailError,
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
