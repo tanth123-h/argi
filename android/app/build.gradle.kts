@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -15,7 +17,7 @@ android {
     }
 
     // Read Maps API key from local.properties
-    val localProps = java.util.Properties()
+    val localProps = Properties()
     val localPropsFile = rootProject.file("local.properties")
     if (localPropsFile.exists()) {
         localPropsFile.inputStream().use { localProps.load(it) }

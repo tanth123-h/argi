@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as google_maps;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
@@ -7,6 +7,7 @@ import 'dart:math' as math;
 
 import 'package:chaona_app/app/theme.dart';
 import 'package:chaona_app/features/farm_management/domain/entities/farm.dart';
+import 'package:chaona_app/features/farm_management/domain/farm_map_settings.dart';
 
 // ---------------------------------------------------------------------------
 // Provider: holds the list of drawn polygon points
@@ -33,8 +34,8 @@ class FarmMapScreen extends ConsumerStatefulWidget {
 }
 
 class _FarmMapScreenState extends ConsumerState<FarmMapScreen> {
-  final MapController _mapController = MapController();
-  LatLng _center = const LatLng(14.5995, 120.9842);
+  google_maps.GoogleMapController? _mapController;
+  LatLng _center = const LatLng(15.87, 100.99);
 
   @override
   void initState() {
@@ -59,18 +60,33 @@ class _FarmMapScreenState extends ConsumerState<FarmMapScreen> {
       final pos = await Geolocator.getCurrentPosition();
       final loc = LatLng(pos.latitude, pos.longitude);
       setState(() => _center = loc);
-      _mapController.move(loc, 17);
+      await _mapController?.animateCamera(
+        google_maps.CameraUpdate.newCameraPosition(
+          google_maps.CameraPosition(target: google_maps.LatLng(loc.latitude, loc.longitude), zoom: 18),
+        ),
+      );
     } catch (_) {}
   }
 
-  void _onTap(TapPosition _, LatLng point) {
+  void _onTap(google_maps.LatLng point) {
     if (!ref.read(_isDrawingProvider)) return;
 
-    final pts = [...ref.read(_polygonPointsProvider), point];
+    final newPoint = LatLng(point.latitude, point.longitude);
+    final List<LatLng> pts = [...ref.read(_polygonPointsProvider), newPoint];
     ref.read(_polygonPointsProvider.notifier).state = pts;
 
     if (pts.length >= 3) {
       ref.read(_areaM2Provider.notifier).state = _calcArea(pts);
+    }
+  }
+
+  void _onMarkerDragEnd(int index, LatLng position) {
+    final points = [...ref.read(_polygonPointsProvider)];
+    if (index >= points.length) return;
+    points[index] = position;
+    ref.read(_polygonPointsProvider.notifier).state = points;
+    if (points.length >= 3) {
+      ref.read(_areaM2Provider.notifier).state = _calcArea(points);
     }
   }
 
@@ -146,66 +162,45 @@ class _FarmMapScreenState extends ConsumerState<FarmMapScreen> {
       body: Stack(
         children: [
           // ── MAP ──────────────────────────────────────────────────────────
-          FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              initialCenter: _center,
-              initialZoom: 16,
-              onTap: _onTap,
+          google_maps.GoogleMap(
+            onMapCreated: (controller) => _mapController = controller,
+            initialCameraPosition: google_maps.CameraPosition(
+              target: google_maps.LatLng(_center.latitude, _center.longitude),
+              zoom: 16,
             ),
-            children: [
-              TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.example.argi',
-                maxZoom: 19,
-              ),
-              // Filled polygon
+            polygons: {
               if (pts.length >= 3)
-                PolygonLayer(
-                  polygons: [
-                    Polygon(
-                      points: pts,
-                      color: AppTheme.primaryGreen.withValues(alpha: 0.25),
-                      borderColor: AppTheme.primaryGreen,
-                      borderStrokeWidth: 3,
-                      isFilled: true,
-                    ),
-                  ],
+                google_maps.Polygon(
+                  polygonId: const google_maps.PolygonId('farm-boundary'),
+                  points: pts
+                      .map((point) => google_maps.LatLng(point.latitude, point.longitude))
+                      .toList(),
+                  fillColor: AppTheme.primaryGreen.withValues(alpha: 0.25),
+                  strokeColor: AppTheme.primaryGreen,
+                  strokeWidth: 3,
                 ),
-              // Vertex markers
-              MarkerLayer(
-                markers: pts.asMap().entries.map((e) {
-                  final isFirst = e.key == 0;
-                  return Marker(
-                    point: e.value,
-                    width: 28,
-                    height: 28,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: isFirst
-                            ? AppTheme.primaryGreenDark
-                            : AppTheme.primaryGreen,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                      ),
-                      child: isFirst
-                          ? const Icon(
-                              Icons.home,
-                              color: Colors.white,
-                              size: 14,
-                            )
-                          : null,
-                    ),
-                  );
-                }).toList(),
-              ),
-              // OSM attribution (required by tile provider)
-              const RichAttributionWidget(
-                attributions: [
-                  TextSourceAttribution('OpenStreetMap contributors'),
-                ],
-              ),
-            ],
+            },
+            markers: {
+              for (final entry in pts.asMap().entries)
+                google_maps.Marker(
+                  markerId: google_maps.MarkerId('farm-point-${entry.key}'),
+                  position: google_maps.LatLng(entry.value.latitude, entry.value.longitude),
+                  draggable: true,
+                  onDragEnd: (position) => _onMarkerDragEnd(
+                    entry.key,
+                    LatLng(position.latitude, position.longitude),
+                  ),
+                ),
+            },
+            onTap: _onTap,
+            mapType: FarmMapSettings.mapType,
+            myLocationEnabled: FarmMapSettings.enableMyLocation,
+            myLocationButtonEnabled: FarmMapSettings.enableMyLocationButton,
+            compassEnabled: FarmMapSettings.enableCompass,
+            rotateGesturesEnabled: FarmMapSettings.enableRotateGestures,
+            tiltGesturesEnabled: FarmMapSettings.enableTiltGestures,
+            zoomControlsEnabled: true,
+            mapToolbarEnabled: false,
           ),
 
           // ── DRAWING BADGE ─────────────────────────────────────────────
@@ -304,6 +299,12 @@ class _FarmMapScreenState extends ConsumerState<FarmMapScreen> {
               ),
             )
           : null,
+      floatingActionButton: FloatingActionButton.small(
+        heroTag: 'locate-farm',
+        tooltip: 'Locate me',
+        onPressed: _getCurrentLocation,
+        child: const Icon(Icons.my_location),
+      ),
     );
   }
 
