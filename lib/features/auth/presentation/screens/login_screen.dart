@@ -46,6 +46,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             },
             child: const Text('สมัครสมาชิก'),
           ),
+          TextButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              ctx.push('/demo-preset');
+            },
+            icon: const Icon(Icons.play_circle_outline),
+            label: const Text('ทดลองใช้งาน Demo'),
+          ),
         ],
       ),
     );
