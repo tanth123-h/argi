@@ -7,6 +7,14 @@ import 'package:chaona_app/features/auth/data/demo/demo_fixtures.dart';
 import 'package:chaona_app/features/auth/presentation/providers/demo_mode_provider.dart';
 import 'package:chaona_app/features/auth/presentation/providers/auth_provider.dart';
 import 'package:chaona_app/features/soil_monitoring/domain/entities/soil_data.dart';
+import 'package:chaona_app/features/recommendations/domain/entities/recommendation.dart';
+import 'package:chaona_app/features/recommendations/domain/entities/risk_level.dart';
+import 'package:chaona_app/features/recommendations/domain/rules/rice_rule.dart';
+import 'package:chaona_app/features/recommendations/domain/rules/crop_rule.dart';
+import 'package:chaona_app/features/recommendations/domain/services/recommendation_engine.dart';
+import 'package:chaona_app/features/soil_survey/domain/entities/soil_plot_summary.dart';
+import 'package:chaona_app/features/dashboard/presentation/widgets/action_recommendation_card.dart';
+import 'package:chaona_app/features/dashboard/presentation/widgets/risk_card.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -76,7 +84,29 @@ class DashboardScreen extends ConsumerWidget {
       ),
       body: farm == null
           ? _EmptyState(onAddFarm: () => ctx.push('/farms'))
-          : _DashboardContent(farm: farm, soil: soil),
+          : _DashboardContent(
+              farm: farm,
+              soil: soil,
+              recommendations: soil == null
+                  ? const []
+                  : RecommendationEngine(rules: const [RiceRule()]).evaluate(
+                      RecommendationContext(
+                        soil: SoilPlotSummary(
+                          plotId: farm.plots.isEmpty ? farm.id : farm.plots.first.id,
+                          medianNitrogen: soil.nitrogen,
+                          medianPhosphorus: soil.phosphorus,
+                          medianPotassium: soil.potassium,
+                          medianMoisture: soil.moisture,
+                          validSampleCount: 5,
+                          confidence: SampleConfidence.medium,
+                          latestSampleAt: soil.createdAt,
+                        ),
+                        plotAreaRai: farm.areaRai,
+                        cropId: farm.cropType,
+                        now: DateTime.now(),
+                      ),
+                    ),
+            ),
     );
   }
 }
@@ -135,8 +165,9 @@ class _EmptyState extends StatelessWidget {
 class _DashboardContent extends StatelessWidget {
   final dynamic farm; // Farm entity — typed fully in Phase 2
   final SoilData? soil;
+  final List<Recommendation> recommendations;
 
-  const _DashboardContent({required this.farm, this.soil});
+  const _DashboardContent({required this.farm, this.soil, this.recommendations = const []});
 
   @override
   Widget build(BuildContext ctx) {
@@ -147,9 +178,52 @@ class _DashboardContent extends StatelessWidget {
         children: [
           _FarmStatusCard(farm: farm),
           if (soil != null) _SoilCard(soil: soil!),
+          if (recommendations.isNotEmpty) _RecommendationSection(recommendations: recommendations),
           _WeatherCard(),
-          _AiRecommendationCard(),
         ],
+      ),
+    );
+  }
+}
+
+class _RecommendationSection extends StatelessWidget {
+  final List<Recommendation> recommendations;
+  const _RecommendationSection({required this.recommendations});
+
+  @override
+  Widget build(BuildContext context) {
+    final risks = recommendations.where((item) => item.level != RiskLevel.info).toList();
+    final actions = recommendations.where((item) => item.level == RiskLevel.info).take(2).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+          child: Text('สิ่งที่ควรทำวันนี้', style: Theme.of(context).textTheme.titleLarge),
+        ),
+        for (final risk in risks)
+          RiskCard(
+            title: risk.title,
+            detail: '${risk.value} • ${risk.action}',
+            level: risk.level,
+            onTap: () => _showSource(context, risk),
+          ),
+        for (final action in actions)
+          ActionRecommendationCard(
+            recommendation: action,
+            onSourceTap: () => _showSource(context, action),
+          ),
+      ],
+    );
+  }
+
+  void _showSource(BuildContext context, Recommendation recommendation) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('แหล่งอ้างอิง'),
+        content: Text('${recommendation.source.title}\n${recommendation.source.publisher}\n${recommendation.source.url}'),
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('ปิด'))],
       ),
     );
   }

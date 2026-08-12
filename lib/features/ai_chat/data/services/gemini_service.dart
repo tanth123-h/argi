@@ -13,6 +13,9 @@ class GeminiService {
 
   void init() {
     if (_initialized) return;
+    if (AppConstants.geminiApiKey.isEmpty) {
+      throw StateError('Gemini API key is not configured');
+    }
     _model = GenerativeModel(
       model: 'gemini-2.0-flash',
       apiKey: AppConstants.geminiApiKey,

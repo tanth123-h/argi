@@ -21,7 +21,7 @@ class AppConstants {
   // Google Gemini API Key
   static const geminiApiKey = String.fromEnvironment(
     'GEMINI_API_KEY',
-    defaultValue: 'AQ.Ab8RN6LBXDc1ujiDtGo3epIUToNyGSOxGQymuwFDZt7cdc8rLAg',
+    defaultValue: '',
   );
 
   // MQTT — Arduino UNO R4 soil sensor

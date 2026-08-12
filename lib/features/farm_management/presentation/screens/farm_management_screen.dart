@@ -6,6 +6,7 @@ import 'package:chaona_app/features/auth/data/demo/demo_fixtures.dart';
 import 'package:chaona_app/features/auth/presentation/providers/demo_mode_provider.dart';
 import 'package:chaona_app/features/farm_management/domain/entities/farm.dart';
 import 'farm_map_screen.dart';
+import '../../../soil_survey/presentation/screens/plot_survey_screen.dart';
 
 class FarmManagementScreen extends ConsumerWidget {
   const FarmManagementScreen({super.key});
@@ -176,6 +177,25 @@ class _FarmCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 14),
+
+              if (farm.plots.isNotEmpty)
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () => Navigator.push(
+                      ctx,
+                      MaterialPageRoute(
+                        builder: (_) => PlotSurveyScreen(
+                          farm: farm,
+                          plot: farm.plots.first,
+                        ),
+                      ),
+                    ),
+                    icon: const Icon(Icons.science_outlined),
+                    label: const Text('เก็บตัวอย่างดิน'),
+                  ),
+                ),
+              if (farm.plots.isNotEmpty) const SizedBox(height: 8),
 
               // Open map button
               SizedBox(
