@@ -121,7 +121,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 'AI Smart Farming',
                 style: Theme.of(ctx).textTheme.bodyMedium,
               ),
-              const SizedBox(height: 48),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: FilledButton.icon(
+                  onPressed: () => ctx.push('/demo-preset'),
+                  icon: const Icon(Icons.play_circle_outline),
+                  label: const Text('เริ่มใช้งาน Demo'),
+                ),
+              ),
+              const SizedBox(height: 32),
 
               // Login form
               Form(
@@ -255,23 +265,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Demo mode CTA — large, accessible
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: OutlinedButton.icon(
-                  onPressed: () => ctx.push('/demo-preset'),
-                  icon: const Icon(Icons.play_circle_outline),
-                  label: const Text('ทดลองใช้งาน (Demo)'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppTheme.secondaryBrown,
-                    side: const BorderSide(
-                      color: AppTheme.secondaryBrown,
-                      width: 1.5,
-                    ),
-                  ),
-                ),
-              ),
             ],
           ),
         ),
