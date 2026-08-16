@@ -30,6 +30,18 @@ await Supabase.initialize(
 
 ## Step 3: Create Database Tables
 
+If the app shows `PGRST205` or says it cannot find `public.farms`, run the
+complete file `docs/supabase/farms_table_setup.sql` in Supabase SQL Editor
+first. It creates the `farms` table, grants the authenticated app access, and
+adds owner-only RLS policies.
+
+After the farm table works, run `docs/supabase/monitoring_setup.sql`. It creates
+the `plots` and `soil_readings` tables used by both handheld and stationary ESP32
+monitoring.
+
+See `docs/hardware/ESP32_MONITORING_WORKFLOW.md` for the app workflow and MQTT
+payload expected by the monitor.
+
 Go to **SQL Editor** in Supabase dashboard and run these SQL commands:
 
 ### 1. Create Farms Table
@@ -48,6 +60,9 @@ CREATE TABLE farms (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ
 );
+
+-- Used by the create-farm form to store the main crop.
+ALTER TABLE farms ADD COLUMN IF NOT EXISTS crop_type TEXT NOT NULL DEFAULT 'rice';
 
 -- Index for faster queries
 CREATE INDEX idx_farms_user_id ON farms(user_id);

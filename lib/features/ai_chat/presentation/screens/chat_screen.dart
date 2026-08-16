@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:chaona_app/app/theme.dart';
 import 'package:chaona_app/features/ai_chat/data/services/gemini_service.dart';
-import 'package:chaona_app/features/auth/data/demo/demo_fixtures.dart';
-import 'package:chaona_app/features/auth/presentation/providers/demo_mode_provider.dart';
+import 'package:chaona_app/features/soil_monitoring/presentation/providers/soil_live_provider.dart';
 
 // ── State ──────────────────────────────────────────────────────────────────
 
@@ -62,20 +61,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   String _buildSoilContext() {
-    final demoPreset = ref.read(demoModeNotifierProvider);
-    if (demoPreset == DemoPreset.none) return '';
-    final soil = DemoFixtures.soilFor(demoPreset);
-    final farm = DemoFixtures.farmFor(demoPreset);
-    return 'N=${soil.nitrogen.toStringAsFixed(0)}, P=${soil.phosphorus.toStringAsFixed(0)}, '
-        'K=${soil.potassium.toStringAsFixed(0)} mg/kg, ความชื้น=${soil.moisture.toStringAsFixed(0)}%, '
-        'pH=${soil.phLevel}';
+    final latest = ref.read(soilLiveProvider).latest;
+    if (latest == null) return 'ยังไม่มีข้อมูลเซนเซอร์ ESP32 ล่าสุด';
+    return 'อุปกรณ์=${latest.device}, N=${latest.n.toStringAsFixed(0)}, '
+        'P=${latest.p.toStringAsFixed(0)}, K=${latest.k.toStringAsFixed(0)} mg/kg, '
+        'ความชื้น=${latest.soil}%, อุณหภูมิ=${latest.temperature.toStringAsFixed(1)} C, '
+        'pH=${latest.ph.toStringAsFixed(1)}, เวลา=${latest.receivedAt.toIso8601String()}';
   }
 
   String _buildFarmContext() {
-    final demoPreset = ref.read(demoModeNotifierProvider);
-    if (demoPreset == DemoPreset.none) return '';
-    final farm = DemoFixtures.farmFor(demoPreset);
-    return 'พืช: ${farm?.cropType ?? 'ข้าว'}, พื้นที่: ${farm?.areaRai ?? 5} ไร่';
+    return 'ยังไม่ได้เลือกแปลงสำหรับบทสนทนานี้';
   }
 
   Future<void> _sendMessage(String text) async {
@@ -115,7 +110,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       setState(() {
         _messages.add(
           _ChatMessage(
-            content: 'ขออภัย เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง',
+            content: GeminiService.readableError(e),
             isUser: false,
           ),
         );
@@ -161,7 +156,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
                 Text(
-                  'Gemini 2.0',
+                  'Gemini • ESP32 + ฟาร์มของคุณ',
                   style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
                 ),
               ],

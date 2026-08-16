@@ -24,11 +24,15 @@ class AppConstants {
     defaultValue: '',
   );
 
-  // MQTT — Arduino UNO R4 soil sensor
+  // MQTT — ESP32 stationary soil sensor
   static const mqttBroker = 'broker.emqx.io';
   static const mqttPort = 1883;
-  static const mqttTopic = 'farm/uno_r4/sensors';
+  static const mqttTopic = 'farm/esp32/sensors';
   static const mqttClientId = 'chaona_flutter_app';
+  static const geminiModel = String.fromEnvironment(
+    'GEMINI_MODEL',
+    defaultValue: 'gemini-3.6-flash',
+  );
 
   // Timeouts
   static const aiRequestTimeoutSeconds = 30;

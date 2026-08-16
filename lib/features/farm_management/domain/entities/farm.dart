@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:latlong2/latlong.dart';
 import 'plot.dart';
 
 class Farm extends Equatable {
@@ -10,6 +11,7 @@ class Farm extends Equatable {
   final String cropType;
   final DateTime createdAt;
   final List<Plot> plots;
+  final List<LatLng> boundary;
 
   const Farm({
     required this.id,
@@ -20,6 +22,7 @@ class Farm extends Equatable {
     required this.cropType,
     required this.createdAt,
     this.plots = const [],
+    this.boundary = const [],
   });
 
   @override

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart' as google_maps;
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
@@ -7,7 +7,6 @@ import 'dart:math' as math;
 
 import 'package:chaona_app/app/theme.dart';
 import 'package:chaona_app/features/farm_management/domain/entities/farm.dart';
-import 'package:chaona_app/features/farm_management/domain/farm_map_settings.dart';
 
 // ---------------------------------------------------------------------------
 // Provider: holds the list of drawn polygon points
@@ -21,20 +20,28 @@ final _areaM2Provider = StateProvider<double?>((ref) => null);
 final _plantSpacingProvider = StateProvider<double>((ref) => 30.0);
 final _rowSpacingProvider = StateProvider<double>((ref) => 50.0);
 
+class FarmMapDraft {
+  final List<LatLng> points;
+  final double areaM2;
+
+  const FarmMapDraft({required this.points, required this.areaM2});
+}
+
 // ---------------------------------------------------------------------------
 // Screen
 // ---------------------------------------------------------------------------
 class FarmMapScreen extends ConsumerStatefulWidget {
   final Farm farm;
+  final bool isCreating;
 
-  const FarmMapScreen({super.key, required this.farm});
+  const FarmMapScreen({super.key, required this.farm, this.isCreating = false});
 
   @override
   ConsumerState<FarmMapScreen> createState() => _FarmMapScreenState();
 }
 
 class _FarmMapScreenState extends ConsumerState<FarmMapScreen> {
-  google_maps.GoogleMapController? _mapController;
+  final MapController _mapController = MapController();
   LatLng _center = const LatLng(15.87, 100.99);
 
   @override
@@ -42,10 +49,20 @@ class _FarmMapScreenState extends ConsumerState<FarmMapScreen> {
     super.initState();
     // Reset state when screen opens
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(_polygonPointsProvider.notifier).state = [];
-      ref.read(_isDrawingProvider.notifier).state = false;
-      ref.read(_areaM2Provider.notifier).state = null;
-      _getCurrentLocation();
+      final boundary = widget.farm.boundary;
+      ref.read(_polygonPointsProvider.notifier).state = boundary;
+      ref.read(_isDrawingProvider.notifier).state = widget.isCreating;
+      ref.read(_areaM2Provider.notifier).state = boundary.length >= 3
+          ? _calcArea(boundary)
+          : null;
+      if (boundary.isNotEmpty) {
+        setState(() => _center = boundary.first);
+        Future<void>.delayed(const Duration(milliseconds: 300), () {
+          if (mounted) _mapController.move(boundary.first, 17);
+        });
+      } else {
+        _getCurrentLocation();
+      }
     });
   }
 
@@ -60,15 +77,11 @@ class _FarmMapScreenState extends ConsumerState<FarmMapScreen> {
       final pos = await Geolocator.getCurrentPosition();
       final loc = LatLng(pos.latitude, pos.longitude);
       setState(() => _center = loc);
-      await _mapController?.animateCamera(
-        google_maps.CameraUpdate.newCameraPosition(
-          google_maps.CameraPosition(target: google_maps.LatLng(loc.latitude, loc.longitude), zoom: 18),
-        ),
-      );
+      _mapController.move(loc, 18);
     } catch (_) {}
   }
 
-  void _onTap(google_maps.LatLng point) {
+  void _onTap(TapPosition _, LatLng point) {
     if (!ref.read(_isDrawingProvider)) return;
 
     final newPoint = LatLng(point.latitude, point.longitude);
@@ -77,16 +90,6 @@ class _FarmMapScreenState extends ConsumerState<FarmMapScreen> {
 
     if (pts.length >= 3) {
       ref.read(_areaM2Provider.notifier).state = _calcArea(pts);
-    }
-  }
-
-  void _onMarkerDragEnd(int index, LatLng position) {
-    final points = [...ref.read(_polygonPointsProvider)];
-    if (index >= points.length) return;
-    points[index] = position;
-    ref.read(_polygonPointsProvider.notifier).state = points;
-    if (points.length >= 3) {
-      ref.read(_areaM2Provider.notifier).state = _calcArea(points);
     }
   }
 
@@ -142,7 +145,7 @@ class _FarmMapScreenState extends ConsumerState<FarmMapScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.farm.name),
+        title: Text(widget.isCreating ? 'วาดขอบเขตแปลง' : widget.farm.name),
         actions: [
           if (area != null)
             IconButton(
@@ -162,45 +165,55 @@ class _FarmMapScreenState extends ConsumerState<FarmMapScreen> {
       body: Stack(
         children: [
           // ── MAP ──────────────────────────────────────────────────────────
-          google_maps.GoogleMap(
-            onMapCreated: (controller) => _mapController = controller,
-            initialCameraPosition: google_maps.CameraPosition(
-              target: google_maps.LatLng(_center.latitude, _center.longitude),
-              zoom: 16,
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: _center,
+              initialZoom: 16,
+              onTap: _onTap,
             ),
-            polygons: {
-              if (pts.length >= 3)
-                google_maps.Polygon(
-                  polygonId: const google_maps.PolygonId('farm-boundary'),
-                  points: pts
-                      .map((point) => google_maps.LatLng(point.latitude, point.longitude))
-                      .toList(),
-                  fillColor: AppTheme.primaryGreen.withValues(alpha: 0.25),
-                  strokeColor: AppTheme.primaryGreen,
-                  strokeWidth: 3,
-                ),
-            },
-            markers: {
-              for (final entry in pts.asMap().entries)
-                google_maps.Marker(
-                  markerId: google_maps.MarkerId('farm-point-${entry.key}'),
-                  position: google_maps.LatLng(entry.value.latitude, entry.value.longitude),
-                  draggable: true,
-                  onDragEnd: (position) => _onMarkerDragEnd(
-                    entry.key,
-                    LatLng(position.latitude, position.longitude),
+            children: [
+              TileLayer(
+                urlTemplate:
+                    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                userAgentPackageName: 'com.chaona.app',
+              ),
+              PolygonLayer(
+                polygons: [
+                  if (pts.length >= 3)
+                    Polygon(
+                      points: pts,
+                      color: AppTheme.primaryGreen.withValues(alpha: 0.28),
+                      borderColor: AppTheme.primaryGreen,
+                      borderStrokeWidth: 3,
+                      isFilled: true,
+                    ),
+                ],
+              ),
+              MarkerLayer(
+                markers: [
+                  for (final point in pts)
+                    Marker(
+                      point: point,
+                      width: 24,
+                      height: 24,
+                      child: const Icon(
+                        Icons.location_on,
+                        color: AppTheme.secondaryBrown,
+                        size: 24,
+                      ),
+                    ),
+                ],
+              ),
+              RichAttributionWidget(
+                attributions: [
+                  TextSourceAttribution(
+                    'Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+                    prependCopyright: false,
                   ),
-                ),
-            },
-            onTap: _onTap,
-            mapType: FarmMapSettings.mapType,
-            myLocationEnabled: FarmMapSettings.enableMyLocation,
-            myLocationButtonEnabled: FarmMapSettings.enableMyLocationButton,
-            compassEnabled: FarmMapSettings.enableCompass,
-            rotateGesturesEnabled: FarmMapSettings.enableRotateGestures,
-            tiltGesturesEnabled: FarmMapSettings.enableTiltGestures,
-            zoomControlsEnabled: true,
-            mapToolbarEnabled: false,
+                ],
+              ),
+            ],
           ),
 
           // ── DRAWING BADGE ─────────────────────────────────────────────
@@ -287,11 +300,15 @@ class _FarmMapScreenState extends ConsumerState<FarmMapScreen> {
                                     ),
                                   ),
                                 );
-                                Navigator.pop(context, pts);
+                                if (widget.isCreating) {
+                                  Navigator.pop(context, FarmMapDraft(points: pts, areaM2: area ?? 0));
+                                } else {
+                                  Navigator.pop(context, pts);
+                                }
                               }
                             : null,
                         icon: const Icon(Icons.save_outlined),
-                        label: const Text('บันทึก'),
+                        label: Text(widget.isCreating ? 'ถัดไป' : 'บันทึก'),
                       ),
                     ),
                   ],

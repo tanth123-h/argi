@@ -2,6 +2,7 @@
 #include <HardwareSerial.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <PubSubClient.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 
@@ -10,6 +11,9 @@ const char* WIFI_SSID = "YOUR_WIFI_NAME";
 const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
 const char* API_URL = ""; // Example: https://your-api.example.com/sensor/ingest
 const char* DEVICE_ID = "handheld-01";
+const char* MQTT_HOST = "broker.emqx.io";
+constexpr uint16_t MQTT_PORT = 1883;
+const char* MQTT_TOPIC = "farm/esp32/sensors";
 
 constexpr int RS485_RX = 16;
 constexpr int RS485_TX = 17;
@@ -19,6 +23,8 @@ constexpr uint32_t SENSOR_BAUD = 4800;
 
 HardwareSerial SensorSerial(2);
 LiquidCrystal_I2C lcd(0x27, 16, 2);
+WiFiClient wifiClient;
+PubSubClient mqtt(wifiClient);
 
 struct SoilReading {
   float moisture;
@@ -123,6 +129,29 @@ void uploadReading(const SoilReading& reading) {
   http.end();
 }
 
+void ensureMqtt() {
+  if (WiFi.status() != WL_CONNECTED || mqtt.connected()) return;
+  mqtt.setServer(MQTT_HOST, MQTT_PORT);
+  const String clientId = String(DEVICE_ID) + "-" + String((uint32_t)ESP.getEfuseMac(), HEX);
+  mqtt.connect(clientId.c_str());
+}
+
+void publishReading(const SoilReading& reading) {
+  ensureMqtt();
+  if (!mqtt.connected()) return;
+  String json = "{\"device_id\":\"" + String(DEVICE_ID) +
+                "\",\"moisture\":" + String(reading.moisture, 1) +
+                ",\"temperature\":" + String(reading.temperature, 1) +
+                ",\"ec\":" + String(reading.ec) +
+                ",\"ph\":" + String(reading.ph, 1) +
+                ",\"nitrogen\":" + String(reading.nitrogen) +
+                ",\"phosphorus\":" + String(reading.phosphorus) +
+                ",\"potassium\":" + String(reading.potassium) +
+                ",\"modbus_ok\":true}";
+  mqtt.publish(MQTT_TOPIC, json.c_str());
+  mqtt.loop();
+}
+
 void setup() {
   Serial.begin(115200);
   pinMode(RS485_DIR, OUTPUT);
@@ -148,6 +177,7 @@ void loop() {
                   reading.nitrogen, reading.phosphorus, reading.potassium);
     showReading(reading);
     uploadReading(reading);
+    publishReading(reading);
   } else {
     lcd.clear();
     lcd.print("Sensor read fail");

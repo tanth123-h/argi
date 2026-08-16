@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 
-enum SampleSource { handheld, fixedSensor, demo }
+enum SampleSource { handheld, fixedSensor }
 
 class SoilSample extends Equatable {
   final String id;
