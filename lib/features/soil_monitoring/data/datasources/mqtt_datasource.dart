@@ -10,10 +10,10 @@ import 'package:chaona_app/core/constants/app_constants.dart';
 import 'package:chaona_app/features/soil_monitoring/domain/entities/sensor_data.dart';
 
 /// MQTT datasource — connects to broker.emqx.io and subscribes to
-/// [AppConstants.mqttTopic] (farm/uno_r4/sensors).
+/// [AppConstants.mqttTopic] (farm/esp32/sensors).
 ///
-/// Data source: Arduino UNO R4 WiFi + 7-in-1 Modbus NPK soil sensor
-/// Hardware: RS485 → Modbus → UNO R4 WiFi → MQTT (broker.emqx.io)
+/// Data source: ESP32 + MAX485 + 7-in-1 Modbus NPK soil sensor
+/// Hardware: RS485 → Modbus → ESP32 → MQTT (broker.emqx.io)
 /// Protocol: MQTT 3.1.1 / JSON payload, published every 2 seconds
 class MqttDatasource {
   MqttServerClient? _client;
@@ -93,17 +93,32 @@ class MqttDatasource {
   }
 
   SensorData _parse(Map<String, dynamic> j) {
-    num asNum(dynamic v) => v is num ? v : 0;
+    num asNum(dynamic v) {
+      if (v is num) return v;
+      return num.tryParse(v?.toString() ?? '') ?? 0;
+    }
+
+    num firstNum(List<String> keys) {
+      for (final key in keys) {
+        if (j.containsKey(key) && j[key] != null) return asNum(j[key]);
+      }
+      return 0;
+    }
+
     return SensorData(
-      device: j['device']?.toString() ?? 'UNO_R4',
-      soil: asNum(j['soil']).toInt(),
-      temperature: asNum(j['temperature']).toDouble(),
-      humidity: asNum(j['humidity']).toDouble(),
-      ph: asNum(j['ph']).toDouble(),
-      n: asNum(j['n']).toDouble(),
-      p: asNum(j['p']).toDouble(),
-      k: asNum(j['k']).toDouble(),
-      modbusOk: j['modbus_ok'] == true,
+      device:
+          j['device_id']?.toString() ??
+          j['device']?.toString() ??
+          'esp32-stationary',
+      moisture: firstNum(['moisture', 'soil']).toDouble(),
+      temperature: firstNum(['temperature', 'temp']).toDouble(),
+      humidity: firstNum(['humidity', 'air_humidity']).toDouble(),
+      ec: firstNum(['ec', 'conductivity']).toDouble(),
+      ph: firstNum(['ph']).toDouble(),
+      n: firstNum(['nitrogen', 'n']).toDouble(),
+      p: firstNum(['phosphorus', 'p']).toDouble(),
+      k: firstNum(['potassium', 'k']).toDouble(),
+      modbusOk: j['modbus_ok'] == true || j['modbus_ok'] == 1,
       rssi: j['rssi'] is num ? (j['rssi'] as num).toInt() : null,
       receivedAt: DateTime.now(),
     );

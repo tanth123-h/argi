@@ -21,14 +21,18 @@ class AppConstants {
   // Google Gemini API Key
   static const geminiApiKey = String.fromEnvironment(
     'GEMINI_API_KEY',
-    defaultValue: 'AQ.Ab8RN6LBXDc1ujiDtGo3epIUToNyGSOxGQymuwFDZt7cdc8rLAg',
+    defaultValue: '',
   );
 
-  // MQTT — Arduino UNO R4 soil sensor
+  // MQTT — ESP32 stationary soil sensor
   static const mqttBroker = 'broker.emqx.io';
   static const mqttPort = 1883;
-  static const mqttTopic = 'farm/uno_r4/sensors';
+  static const mqttTopic = 'farm/esp32/sensors';
   static const mqttClientId = 'chaona_flutter_app';
+  static const geminiModel = String.fromEnvironment(
+    'GEMINI_MODEL',
+    defaultValue: 'gemini-3.6-flash',
+  );
 
   // Timeouts
   static const aiRequestTimeoutSeconds = 30;

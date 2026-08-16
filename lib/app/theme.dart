@@ -25,6 +25,18 @@ class AppTheme {
   static const textSecondary = Color(0xFF6B7280);
   static const divider = Color(0xFFE5E7EB);
 
+  // Home palette: field ink, warm paper, clay, sun, and water accents.
+  static const fieldCanvas = Color(0xFFF3F0E8);
+  static const fieldPaper = Color(0xFFFFFCF5);
+  static const fieldInk = Color(0xFF183C31);
+  static const fieldGreen = Color(0xFF5F8B62);
+  static const fieldMist = Color(0xFFE4EEE2);
+  static const fieldClay = Color(0xFFC66A45);
+  static const fieldSun = Color(0xFFF2C66D);
+  static const fieldBlue = Color(0xFF3E7180);
+  static const fieldMuted = Color(0xFF6D756F);
+  static const fieldLine = Color(0xFFE1DED4);
+
   static ThemeData get light {
     return ThemeData(
       useMaterial3: true,

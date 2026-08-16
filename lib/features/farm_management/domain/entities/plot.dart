@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:latlong2/latlong.dart';
 
 class Plot extends Equatable {
   final String id;
@@ -9,6 +10,7 @@ class Plot extends Equatable {
   final String? sensorDeviceToken;
   final bool isDeleted;
   final DateTime createdAt;
+  final List<LatLng> boundary;
 
   const Plot({
     required this.id,
@@ -19,8 +21,9 @@ class Plot extends Equatable {
     this.sensorDeviceToken,
     this.isDeleted = false,
     required this.createdAt,
+    this.boundary = const [],
   });
 
   @override
-  List<Object?> get props => [id, farmId, name];
+  List<Object?> get props => [id, farmId, name, areaRai, cropType, boundary];
 }

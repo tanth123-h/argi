@@ -1,0 +1,23 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:chaona_app/features/soil_survey/domain/services/sampling_point_generator.dart';
+
+void main() {
+  test('zigzag generator returns requested points inside rectangular boundary', () {
+    final points = SamplingPointGenerator().generate(
+      plotId: 'plot-1',
+      boundary: const [
+        LatLng(14, 100),
+        LatLng(14, 100.01),
+        LatLng(14.01, 100.01),
+        LatLng(14.01, 100),
+      ],
+      count: 5,
+    );
+
+    expect(points, hasLength(5));
+    expect(points.every((p) => p.latitude >= 14 && p.latitude <= 14.01), isTrue);
+    expect(points.every((p) => p.longitude >= 100 && p.longitude <= 100.01), isTrue);
+    expect(points.map((p) => p.id).toSet(), hasLength(5));
+  });
+}

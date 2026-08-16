@@ -20,13 +20,21 @@ final _areaM2Provider = StateProvider<double?>((ref) => null);
 final _plantSpacingProvider = StateProvider<double>((ref) => 30.0);
 final _rowSpacingProvider = StateProvider<double>((ref) => 50.0);
 
+class FarmMapDraft {
+  final List<LatLng> points;
+  final double areaM2;
+
+  const FarmMapDraft({required this.points, required this.areaM2});
+}
+
 // ---------------------------------------------------------------------------
 // Screen
 // ---------------------------------------------------------------------------
 class FarmMapScreen extends ConsumerStatefulWidget {
   final Farm farm;
+  final bool isCreating;
 
-  const FarmMapScreen({super.key, required this.farm});
+  const FarmMapScreen({super.key, required this.farm, this.isCreating = false});
 
   @override
   ConsumerState<FarmMapScreen> createState() => _FarmMapScreenState();
@@ -34,17 +42,27 @@ class FarmMapScreen extends ConsumerStatefulWidget {
 
 class _FarmMapScreenState extends ConsumerState<FarmMapScreen> {
   final MapController _mapController = MapController();
-  LatLng _center = const LatLng(14.5995, 120.9842);
+  LatLng _center = const LatLng(15.87, 100.99);
 
   @override
   void initState() {
     super.initState();
     // Reset state when screen opens
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(_polygonPointsProvider.notifier).state = [];
-      ref.read(_isDrawingProvider.notifier).state = false;
-      ref.read(_areaM2Provider.notifier).state = null;
-      _getCurrentLocation();
+      final boundary = widget.farm.boundary;
+      ref.read(_polygonPointsProvider.notifier).state = boundary;
+      ref.read(_isDrawingProvider.notifier).state = widget.isCreating;
+      ref.read(_areaM2Provider.notifier).state = boundary.length >= 3
+          ? _calcArea(boundary)
+          : null;
+      if (boundary.isNotEmpty) {
+        setState(() => _center = boundary.first);
+        Future<void>.delayed(const Duration(milliseconds: 300), () {
+          if (mounted) _mapController.move(boundary.first, 17);
+        });
+      } else {
+        _getCurrentLocation();
+      }
     });
   }
 
@@ -59,14 +77,15 @@ class _FarmMapScreenState extends ConsumerState<FarmMapScreen> {
       final pos = await Geolocator.getCurrentPosition();
       final loc = LatLng(pos.latitude, pos.longitude);
       setState(() => _center = loc);
-      _mapController.move(loc, 17);
+      _mapController.move(loc, 18);
     } catch (_) {}
   }
 
   void _onTap(TapPosition _, LatLng point) {
     if (!ref.read(_isDrawingProvider)) return;
 
-    final pts = [...ref.read(_polygonPointsProvider), point];
+    final newPoint = LatLng(point.latitude, point.longitude);
+    final List<LatLng> pts = [...ref.read(_polygonPointsProvider), newPoint];
     ref.read(_polygonPointsProvider.notifier).state = pts;
 
     if (pts.length >= 3) {
@@ -126,7 +145,7 @@ class _FarmMapScreenState extends ConsumerState<FarmMapScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.farm.name),
+        title: Text(widget.isCreating ? 'วาดขอบเขตแปลง' : widget.farm.name),
         actions: [
           if (area != null)
             IconButton(
@@ -155,54 +174,43 @@ class _FarmMapScreenState extends ConsumerState<FarmMapScreen> {
             ),
             children: [
               TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.example.argi',
-                maxZoom: 19,
+                urlTemplate:
+                    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                userAgentPackageName: 'com.chaona.app',
               ),
-              // Filled polygon
-              if (pts.length >= 3)
-                PolygonLayer(
-                  polygons: [
+              PolygonLayer(
+                polygons: [
+                  if (pts.length >= 3)
                     Polygon(
                       points: pts,
-                      color: AppTheme.primaryGreen.withValues(alpha: 0.25),
+                      color: AppTheme.primaryGreen.withValues(alpha: 0.28),
                       borderColor: AppTheme.primaryGreen,
                       borderStrokeWidth: 3,
                       isFilled: true,
                     ),
-                  ],
-                ),
-              // Vertex markers
-              MarkerLayer(
-                markers: pts.asMap().entries.map((e) {
-                  final isFirst = e.key == 0;
-                  return Marker(
-                    point: e.value,
-                    width: 28,
-                    height: 28,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: isFirst
-                            ? AppTheme.primaryGreenDark
-                            : AppTheme.primaryGreen,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                      ),
-                      child: isFirst
-                          ? const Icon(
-                              Icons.home,
-                              color: Colors.white,
-                              size: 14,
-                            )
-                          : null,
-                    ),
-                  );
-                }).toList(),
+                ],
               ),
-              // OSM attribution (required by tile provider)
-              const RichAttributionWidget(
+              MarkerLayer(
+                markers: [
+                  for (final point in pts)
+                    Marker(
+                      point: point,
+                      width: 24,
+                      height: 24,
+                      child: const Icon(
+                        Icons.location_on,
+                        color: AppTheme.secondaryBrown,
+                        size: 24,
+                      ),
+                    ),
+                ],
+              ),
+              RichAttributionWidget(
                 attributions: [
-                  TextSourceAttribution('OpenStreetMap contributors'),
+                  TextSourceAttribution(
+                    'Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+                    prependCopyright: false,
+                  ),
                 ],
               ),
             ],
@@ -292,11 +300,15 @@ class _FarmMapScreenState extends ConsumerState<FarmMapScreen> {
                                     ),
                                   ),
                                 );
-                                Navigator.pop(context, pts);
+                                if (widget.isCreating) {
+                                  Navigator.pop(context, FarmMapDraft(points: pts, areaM2: area ?? 0));
+                                } else {
+                                  Navigator.pop(context, pts);
+                                }
                               }
                             : null,
                         icon: const Icon(Icons.save_outlined),
-                        label: const Text('บันทึก'),
+                        label: Text(widget.isCreating ? 'ถัดไป' : 'บันทึก'),
                       ),
                     ),
                   ],
@@ -304,6 +316,12 @@ class _FarmMapScreenState extends ConsumerState<FarmMapScreen> {
               ),
             )
           : null,
+      floatingActionButton: FloatingActionButton.small(
+        heroTag: 'locate-farm',
+        tooltip: 'Locate me',
+        onPressed: _getCurrentLocation,
+        child: const Icon(Icons.my_location),
+      ),
     );
   }
 

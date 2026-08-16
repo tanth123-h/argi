@@ -7,7 +7,12 @@ part 'auth_provider.g.dart';
 class Auth extends _$Auth {
   @override
   User? build() {
-    final supabase = Supabase.instance.client;
+    SupabaseClient supabase;
+    try {
+      supabase = Supabase.instance.client;
+    } on AssertionError {
+      return null;
+    }
 
     // Listen to auth state changes
     supabase.auth.onAuthStateChange.listen((data) {

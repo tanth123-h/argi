@@ -3,6 +3,8 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:chaona_app/app/theme.dart';
 import 'package:chaona_app/features/soil_monitoring/domain/entities/sensor_data.dart';
 import 'package:chaona_app/features/soil_monitoring/presentation/providers/soil_live_provider.dart';
@@ -30,7 +32,7 @@ class SoilMonitoringScreen extends ConsumerWidget {
               style: TextStyle(fontWeight: FontWeight.w800),
             ),
             Text(
-              latest?.device ?? 'Arduino UNO R4 WiFi',
+              latest?.device ?? 'ESP32 sensor',
               style: const TextStyle(
                 fontSize: 12,
                 color: AppTheme.textSecondary,
@@ -73,9 +75,11 @@ class SoilMonitoringScreen extends ConsumerWidget {
             onReconnect: notifier.reconnect,
           ),
           const SizedBox(height: 14),
+          _MonitorModePanel(latest: latest),
+          const SizedBox(height: 14),
 
           // ── Moisture Gauge ───────────────────────────────────────────────
-          _MoistureGaugeCard(moisture: latest?.soil),
+          _MoistureGaugeCard(moisture: latest == null ? null : latest.soil.round()),
           const SizedBox(height: 14),
 
           // ── Temp / Humidity / pH ─────────────────────────────────────────
@@ -163,6 +167,186 @@ class SoilMonitoringScreen extends ConsumerWidget {
   }
 }
 
+enum _MonitorMode { handheld, stationary }
+
+class _MonitorModePanel extends ConsumerStatefulWidget {
+  final SensorData? latest;
+
+  const _MonitorModePanel({required this.latest});
+
+  @override
+  ConsumerState<_MonitorModePanel> createState() => _MonitorModePanelState();
+}
+
+class _MonitorModePanelState extends ConsumerState<_MonitorModePanel> {
+  final _client = Supabase.instance.client;
+  _MonitorMode _mode = _MonitorMode.handheld;
+  List<Map<String, dynamic>> _farms = const [];
+  List<Map<String, dynamic>> _plots = const [];
+  String? _farmId;
+  String? _plotId;
+  bool _loading = true;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFarms();
+  }
+
+  Future<void> _loadFarms() async {
+    try {
+      final rows = await _client.from('farms').select('id,name').order('created_at');
+      if (!mounted) return;
+      setState(() {
+        _farms = (rows as List).map((row) => Map<String, dynamic>.from(row)).toList();
+        _farmId = _farms.isEmpty ? null : _farms.first['id'] as String;
+        _loading = false;
+      });
+      await _loadPlots();
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadPlots() async {
+    final farmId = _farmId;
+    if (farmId == null) return;
+    try {
+      final rows = await _client.from('plots').select('id,name').eq('farm_id', farmId).order('created_at');
+      if (!mounted) return;
+      setState(() {
+        _plots = (rows as List).map((row) => Map<String, dynamic>.from(row)).toList();
+        _plotId = null;
+      });
+      _configureStationary();
+    } catch (_) {
+      if (mounted) setState(() => _plots = const []);
+    }
+  }
+
+  void _configureStationary() {
+    final farmId = _farmId;
+    if (_mode != _MonitorMode.stationary) {
+      ref.read(soilLiveProvider.notifier).disableStationaryPersistence();
+    } else if (farmId != null) {
+      ref.read(soilLiveProvider.notifier).configureStationary(
+        farmId: farmId,
+        plotId: _plotId,
+      );
+    }
+  }
+
+  Future<void> _saveHandheld() async {
+    final farmId = _farmId;
+    if (farmId == null) return;
+    setState(() => _saving = true);
+    try {
+      Position? position;
+      try {
+        var permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission();
+        }
+        if (permission != LocationPermission.denied &&
+            permission != LocationPermission.deniedForever) {
+          position = await Geolocator.getCurrentPosition();
+        }
+      } catch (_) {}
+      await ref.read(soilLiveProvider.notifier).saveHandheld(
+        farmId: farmId,
+        plotId: _plotId,
+        deviceId: widget.latest?.device ?? 'handheld-01',
+        latitude: position?.latitude,
+        longitude: position?.longitude,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('บันทึกค่าจากเครื่องพกพาแล้ว')),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('บันทึกไม่สำเร็จ: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('แหล่งตรวจวัด', style: TextStyle(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 10),
+            SegmentedButton<_MonitorMode>(
+              segments: const [
+                ButtonSegment(value: _MonitorMode.handheld, label: Text('เครื่องพกพา'), icon: Icon(Icons.handyman_outlined)),
+                ButtonSegment(value: _MonitorMode.stationary, label: Text('สถานีประจำแปลง'), icon: Icon(Icons.sensors_outlined)),
+              ],
+              selected: {_mode},
+              onSelectionChanged: (value) {
+                setState(() => _mode = value.first);
+                _configureStationary();
+              },
+              showSelectedIcon: false,
+            ),
+            const SizedBox(height: 10),
+            if (_loading)
+              const LinearProgressIndicator()
+            else if (_farms.isEmpty)
+              const Text('สร้างฟาร์มก่อนเริ่มบันทึกค่าดิน')
+            else ...[
+              DropdownButtonFormField<String>(
+                value: _farmId,
+                decoration: const InputDecoration(labelText: 'ฟาร์ม'),
+                items: _farms.map((farm) => DropdownMenuItem<String>(value: farm['id'] as String, child: Text(farm['name'] as String))).toList(),
+                onChanged: (value) {
+                  setState(() => _farmId = value);
+                  _loadPlots();
+                },
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String?>(
+                value: _plots.any((plot) => plot['id'] == _plotId) ? _plotId : null,
+                decoration: const InputDecoration(labelText: 'แปลงย่อย (ถ้ามี)'),
+                items: [
+                  const DropdownMenuItem<String?>(value: null, child: Text('ยังไม่ระบุแปลงย่อย')),
+                  ..._plots.map((plot) => DropdownMenuItem<String>(value: plot['id'] as String, child: Text(plot['name'] as String))),
+                ],
+                onChanged: (value) {
+                  setState(() => _plotId = value);
+                  _configureStationary();
+                },
+              ),
+              const SizedBox(height: 10),
+              if (_mode == _MonitorMode.handheld)
+                FilledButton.icon(
+                  onPressed: widget.latest == null || _saving ? null : _saveHandheld,
+                  icon: _saving ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.save_outlined),
+                  label: const Text('บันทึกค่าจุดนี้พร้อม GPS'),
+                )
+              else
+                const Text('เมื่อเลือกฟาร์มแล้ว ค่าจาก MQTT จะถูกบันทึกอัตโนมัติ', style: TextStyle(color: AppTheme.textSecondary)),
+            ],
+            if (_farmId != null && widget.latest != null) ...[
+              const SizedBox(height: 8),
+              Text('พร้อมบันทึกจาก ${widget.latest!.device}', style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  Data Source Badge
 // ─────────────────────────────────────────────────────────────────────────────
@@ -195,12 +379,12 @@ class _DataSourceBadge extends StatelessWidget {
       (BrokerStatus.connected, DeviceStatus.online) => (
         AppTheme.primaryGreen,
         Icons.sensors_rounded,
-        'Arduino UNO R4 ออนไลน์ ✓',
+        'ESP32 ออนไลน์ ✓',
       ),
       (BrokerStatus.connected, DeviceStatus.offline) => (
         Colors.red,
         Icons.sensors_off_rounded,
-        'Arduino UNO R4 ออฟไลน์',
+        'ESP32 ออฟไลน์',
       ),
       (BrokerStatus.connected, DeviceStatus.unknown) => (
         Colors.orange,
@@ -245,7 +429,7 @@ class _DataSourceBadge extends StatelessWidget {
                   ),
                 ),
                 const Text(
-                  '🔧 แหล่งข้อมูล: Arduino UNO R4 WiFi + 7-in-1 NPK Modbus Sensor',
+                  '🔧 แหล่งข้อมูล: ESP32 + MAX485 + 7-in-1 NPK Modbus Sensor',
                   style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
                 ),
               ],

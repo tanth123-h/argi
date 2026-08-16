@@ -1,7 +1,7 @@
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:chaona_app/core/constants/app_constants.dart';
 
-/// Wrapper around Google Gemini 2.0 Flash.
+/// Wrapper around the configured Gemini model.
 /// All prompts are in Thai context for Thai farmers.
 class GeminiService {
   static final GeminiService _instance = GeminiService._internal();
@@ -13,8 +13,11 @@ class GeminiService {
 
   void init() {
     if (_initialized) return;
+    if (AppConstants.geminiApiKey.isEmpty) {
+      throw StateError('Gemini API key is not configured');
+    }
     _model = GenerativeModel(
-      model: 'gemini-2.0-flash',
+      model: AppConstants.geminiModel,
       apiKey: AppConstants.geminiApiKey,
       generationConfig: GenerationConfig(
         temperature: 0.7,
@@ -42,6 +45,25 @@ class GeminiService {
     _initialized = true;
   }
 
+  static String readableError(Object error) {
+    final raw = error.toString();
+    if (raw.contains('API key is not configured')) {
+      return 'ยังไม่ได้ตั้งค่า Gemini API key ใน Android Studio\n'
+          'เพิ่ม --dart-define=GEMINI_API_KEY=คีย์ใหม่ แล้วเปิดแอปใหม่';
+    }
+    if (raw.contains('403') || raw.toLowerCase().contains('permission')) {
+      return 'Gemini ปฏิเสธ API key นี้ กรุณาตรวจสอบว่า key ยังใช้งานได้และเปิด Gemini API แล้ว';
+    }
+    if (raw.contains('429')) {
+      return 'Gemini ใช้งานเกินโควตาชั่วคราว กรุณารอสักครู่แล้วลองใหม่';
+    }
+    if (raw.toLowerCase().contains('socket') ||
+        raw.toLowerCase().contains('network')) {
+      return 'เชื่อมต่อ Gemini ไม่ได้ กรุณาตรวจสอบอินเทอร์เน็ต';
+    }
+    return 'Gemini ทำงานไม่สำเร็จ: ${raw.replaceFirst('Exception: ', '')}';
+  }
+
   /// General farming chat
   Future<String> chat({
     required String message,
@@ -56,6 +78,14 @@ class GeminiService {
     if (farmContext != null) contextPrefix += 'ข้อมูลฟาร์ม: $farmContext\n';
     if (soilContext != null) contextPrefix += 'ข้อมูลดินล่าสุด: $soilContext\n';
     if (contextPrefix.isNotEmpty) contextPrefix += '\n';
+    contextPrefix += '''
+แหล่งอ้างอิงที่ระบบอนุญาตให้ใช้:
+- FAO, Crop Evapotranspiration (ข้อมูลความต้องการน้ำ): https://www.fao.org/4/f2430e/f2430e.pdf
+- FAO, Crop water needs: https://www.fao.org/4/s2022e/s2022e02.htm
+- Rice Knowledge Bank, Rice Department Thailand: https://rkb.ricethailand.go.th/web/content_page.php?code=A-1GT2GJ7SD8
+ห้ามสร้างตัวเลข เกณฑ์ หรือ URL ใหม่เอง หากข้อมูลไม่พอให้บอกว่าต้องเก็บข้อมูลเพิ่ม และแยกให้ชัดว่าเป็นคำอธิบายโดย AI ไม่ใช่ผลวินิจฉัยจากเซนเซอร์
+
+''';
 
     final contents = <Content>[];
     for (final msg in history) {

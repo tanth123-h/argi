@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
 import 'package:chaona_app/app/theme.dart';
+import 'package:chaona_app/features/auth/domain/auth_input_validator.dart';
 import 'package:chaona_app/features/auth/presentation/providers/auth_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -13,273 +15,65 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _identifierCtrl = TextEditingController();
-  final _passwordCtrl = TextEditingController();
-  bool _obscurePassword = true;
-  bool _isLoading = false;
+  final _email = TextEditingController();
+  final _password = TextEditingController();
+  bool _loading = false;
+  bool _hidden = true;
 
   @override
   void dispose() {
-    _identifierCtrl.dispose();
-    _passwordCtrl.dispose();
+    _email.dispose();
+    _password.dispose();
     super.dispose();
   }
 
-  void _showSignUpDialog(BuildContext ctx) {
-    showDialog(
-      context: ctx,
-      builder: (_) => AlertDialog(
-        title: const Text('ไม่พบบัญชีนี้'),
-        content: const Text(
-          'ยังไม่มีบัญชีสำหรับอีเมลนี้\nต้องการสมัครสมาชิกใหม่ด้วยข้อมูลที่กรอกไว้หรือไม่?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('ยกเลิก'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _signUp(ctx);
-            },
-            child: const Text('สมัครสมาชิก'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _signUp(BuildContext ctx) async {
-    setState(() => _isLoading = true);
+  Future<void> _login() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _loading = true);
     try {
-      await ref
-          .read(authProvider.notifier)
-          .signUpWithEmail(
-            email: _identifierCtrl.text.trim(),
-            password: _passwordCtrl.text,
-          );
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('สมัครสมาชิกสำเร็จ! กรุณาตรวจสอบอีเมลเพื่อยืนยัน'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 4),
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('สมัครสมาชิกไม่สำเร็จ: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      await ref.read(authProvider.notifier).signInWithEmail(email: _email.text.trim(), password: _password.text);
+      if (mounted) context.go('/home');
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_message(error.toString()))));
     } finally {
-      if (context.mounted) setState(() => _isLoading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
+  String _message(String error) {
+    if (error.contains('Email not confirmed')) return 'กรุณายืนยันอีเมลจากกล่องข้อความก่อนเข้าสู่ระบบ';
+    if (error.contains('Invalid login credentials')) return 'อีเมลหรือรหัสผ่านไม่ถูกต้อง';
+    return 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่';
+  }
+
   @override
-  Widget build(BuildContext ctx) {
-    return Scaffold(
-      backgroundColor: AppTheme.background,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const SizedBox(height: 32),
-              // Logo / brand
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryGreenLight,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Icon(
-                  Icons.grass,
-                  size: 48,
-                  color: AppTheme.primaryGreen,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Verdant',
-                style: Theme.of(ctx).textTheme.displayMedium?.copyWith(
-                  color: AppTheme.primaryGreenDark,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'AI Smart Farming',
-                style: Theme.of(ctx).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 48),
-
-              // Login form
-              Form(
+  Widget build(BuildContext context) => Scaffold(
+        backgroundColor: AppTheme.background,
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+              child: Form(
                 key: _formKey,
-                child: Column(
-                  children: [
-                    TextFormField(
-                      controller: _identifierCtrl,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(
-                        labelText: 'อีเมล หรือ เบอร์โทรศัพท์',
-                        prefixIcon: Icon(Icons.person_outline),
-                      ),
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) {
-                          return 'กรุณากรอกอีเมลหรือเบอร์โทรศัพท์';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _passwordCtrl,
-                      obscureText: _obscurePassword,
-                      decoration: InputDecoration(
-                        labelText: 'รหัสผ่าน',
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _obscurePassword
-                                ? Icons.visibility_off_outlined
-                                : Icons.visibility_outlined,
-                          ),
-                          onPressed: () => setState(
-                            () => _obscurePassword = !_obscurePassword,
-                          ),
-                        ),
-                      ),
-                      validator: (v) {
-                        if (v == null || v.isEmpty) {
-                          return 'กรุณากรอกรหัสผ่าน';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: () {
-                          // TODO: implement forgot password
-                        },
-                        child: const Text('ลืมรหัสผ่าน?'),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    ElevatedButton(
-                      onPressed: _isLoading
-                          ? null
-                          : () async {
-                              if (_formKey.currentState!.validate()) {
-                                setState(() => _isLoading = true);
-
-                                try {
-                                  final email = _identifierCtrl.text.trim();
-                                  final password = _passwordCtrl.text;
-
-                                  await ref
-                                      .read(authProvider.notifier)
-                                      .signInWithEmail(
-                                        email: email,
-                                        password: password,
-                                      );
-
-                                  if (context.mounted) {
-                                    ctx.go('/home');
-                                  }
-                                } catch (e) {
-                                  if (context.mounted) {
-                                    final msg = e.toString();
-                                    // If no account, offer to create one
-                                    final noAccount =
-                                        msg.contains('invalid_credentials') ||
-                                        msg.contains(
-                                          'Invalid login credentials',
-                                        );
-                                    if (noAccount) {
-                                      _showSignUpDialog(ctx);
-                                    } else {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            'เข้าสู่ระบบไม่สำเร็จ: $msg',
-                                          ),
-                                          backgroundColor: Colors.red,
-                                        ),
-                                      );
-                                    }
-                                  }
-                                } finally {
-                                  if (context.mounted) {
-                                    setState(() => _isLoading = false);
-                                  }
-                                }
-                              }
-                            },
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('เข้าสู่ระบบ'),
-                    ),
-                    const SizedBox(height: 16),
-                    OutlinedButton(
-                      onPressed: () => ctx.push('/register'),
-                      child: const Text('สมัครสมาชิก'),
-                    ),
-                  ],
-                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Container(height: 92, decoration: BoxDecoration(color: AppTheme.primaryGreenDark, borderRadius: BorderRadius.circular(28)), child: const Icon(Icons.grass, color: Colors.white, size: 54)),
+                  const SizedBox(height: 22),
+                  Text('ชาวนา AI', style: Theme.of(context).textTheme.displayMedium, textAlign: TextAlign.center),
+                  const SizedBox(height: 6),
+                  Text('ผู้ช่วยดูแลแปลงของคุณด้วยข้อมูลที่เข้าใจง่าย', style: Theme.of(context).textTheme.bodyMedium, textAlign: TextAlign.center),
+                  const SizedBox(height: 32),
+                  TextFormField(controller: _email, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'อีเมล', prefixIcon: Icon(Icons.email_outlined)), validator: AuthInputValidator.emailError),
+                  const SizedBox(height: 14),
+                  TextFormField(controller: _password, obscureText: _hidden, decoration: InputDecoration(labelText: 'รหัสผ่าน', prefixIcon: const Icon(Icons.lock_outline), suffixIcon: IconButton(icon: Icon(_hidden ? Icons.visibility_outlined : Icons.visibility_off_outlined), onPressed: () => setState(() => _hidden = !_hidden))), validator: (value) => value == null || value.isEmpty ? 'กรุณากรอกรหัสผ่าน' : null),
+                  Align(alignment: Alignment.centerRight, child: TextButton(onPressed: () {}, child: const Text('ลืมรหัสผ่าน?'))),
+                  const SizedBox(height: 8),
+                  FilledButton.icon(onPressed: _loading ? null : _login, icon: _loading ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.login), label: const Text('เข้าสู่ระบบ')),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(onPressed: () => context.push('/register'), icon: const Icon(Icons.person_add_alt_1), label: const Text('สร้างบัญชีใหม่')),
+                ]),
               ),
-
-              const SizedBox(height: 32),
-              const Row(
-                children: [
-                  Expanded(child: Divider()),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 12),
-                    child: Text('หรือ'),
-                  ),
-                  Expanded(child: Divider()),
-                ],
-              ),
-              const SizedBox(height: 24),
-
-              // Demo mode CTA — large, accessible
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: OutlinedButton.icon(
-                  onPressed: () => ctx.push('/demo-preset'),
-                  icon: const Icon(Icons.play_circle_outline),
-                  label: const Text('ทดลองใช้งาน (Demo)'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppTheme.secondaryBrown,
-                    side: const BorderSide(
-                      color: AppTheme.secondaryBrown,
-                      width: 1.5,
-                    ),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
-      ),
-    );
-  }
+      );
 }
