@@ -35,7 +35,6 @@ GoRouter router(RouterRef ref) {
     routes: [
       GoRoute(path: '/login', builder: (ctx, s) => const LoginScreen()),
       GoRoute(path: '/register', builder: (ctx, s) => const RegisterScreen()),
-      GoRoute(path: '/market', builder: (ctx, s) => const MarketScreen()),
       GoRoute(
         path: '/fertilizer',
         builder: (ctx, s) => const FertilizerScreen(),
@@ -68,6 +67,14 @@ GoRouter router(RouterRef ref) {
               GoRoute(
                 path: '/soil',
                 builder: (ctx, s) => const SoilMonitoringScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/market',
+                builder: (ctx, s) => const MarketScreen(),
               ),
             ],
           ),
