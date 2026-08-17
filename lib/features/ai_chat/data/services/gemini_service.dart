@@ -54,17 +54,31 @@ class GeminiService {
     Uint8List? imageBytes,
     String? mimeType,
   }) async {
-    final response = await Supabase.instance.client.functions.invoke(
-      'gemini-proxy',
-      body: {
-        'prompt': prompt,
-        if (imageBytes != null) 'imageBase64': base64Encode(imageBytes),
-        if (mimeType != null) 'mimeType': mimeType,
-      },
-    );
-    final data = response.data;
-    if (data is Map && data['text'] is String) return data['text'] as String;
-    throw StateError('Gemini proxy returned invalid data');
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try {
+        final response = await Supabase.instance.client.functions.invoke(
+          'gemini-proxy',
+          body: {
+            'prompt': prompt,
+            if (imageBytes != null) 'imageBase64': base64Encode(imageBytes),
+            if (mimeType != null) 'mimeType': mimeType,
+          },
+        );
+        final data = response.data;
+        if (data is Map && data['text'] is String) return data['text'] as String;
+        throw StateError('Gemini proxy returned invalid data');
+      } catch (error) {
+        final raw = error.toString().toLowerCase();
+        final transient = raw.contains('status: 0') ||
+            raw.contains('connection') ||
+            raw.contains('socket') ||
+            raw.contains('aborted') ||
+            raw.contains('timeout');
+        if (!transient || attempt == 2) rethrow;
+        await Future<void>.delayed(Duration(milliseconds: 800 * (attempt + 1)));
+      }
+    }
+    throw StateError('Gemini proxy unavailable');
   }
 
   Future<String> _generateText(String prompt) async {
@@ -86,8 +100,11 @@ class GeminiService {
       return 'Gemini ใช้งานเกินโควตาชั่วคราว กรุณารอสักครู่แล้วลองใหม่';
     }
     if (raw.toLowerCase().contains('socket') ||
-        raw.toLowerCase().contains('network')) {
-      return 'เชื่อมต่อ Gemini ไม่ได้ กรุณาตรวจสอบอินเทอร์เน็ต';
+        raw.toLowerCase().contains('network') ||
+        raw.toLowerCase().contains('connection') ||
+        raw.toLowerCase().contains('aborted') ||
+        raw.contains('status: 0')) {
+      return 'เชื่อมต่อ Gemini ไม่ได้ชั่วคราว ระบบลองใหม่อัตโนมัติแล้ว กรุณาตรวจสอบอินเทอร์เน็ตหรือกดวิเคราะห์ใหม่';
     }
     return 'Gemini ทำงานไม่สำเร็จ: ${raw.replaceFirst('Exception: ', '')}';
   }

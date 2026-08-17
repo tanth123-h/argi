@@ -10,6 +10,7 @@ import 'package:chaona_app/features/farm_management/domain/entities/farm.dart';
 import 'package:chaona_app/features/soil_monitoring/data/repositories/soil_reading_repository.dart';
 import 'package:chaona_app/features/weather_flood/data/weather_flood_service.dart';
 import 'package:chaona_app/features/weather_flood/domain/entities/weather_flood_snapshot.dart';
+import 'package:chaona_app/shared/widgets/mascot_companion.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -31,6 +32,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _weather.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -154,7 +161,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ? 'เกษตรกร'
         : profileName;
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7F1),
+      backgroundColor: AppTheme.fieldCanvas,
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
@@ -167,6 +174,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               snapshot: _snapshot,
               loading: _loading,
               onFarmChanged: _selectFarm,
+              onWeather: () => context.push('/weather-flood'),
               onNotifications: () => context.push('/farm-tools'),
               onAi: () => context.push('/farm-analysis'),
               onLogout: () async {
@@ -187,6 +195,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           reading: _reading,
                           snapshot: _snapshot,
                           onOpen: () => context.push('/farm-tools'),
+                        ),
+                        const SizedBox(height: 14),
+                        _StartSurveyBanner(
+                          areaRai: _farm!.areaRai,
+                          onTap: () => context.push('/soil'),
                         ),
                         const SizedBox(height: 20),
                         Text(
@@ -242,6 +255,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                               color: const Color(0xFF47705D),
                               onTap: () => context.push('/farms'),
                             ),
+                            _ActionTile(
+                              icon: Icons.grass_outlined,
+                              label: 'คำนวณปุ๋ย',
+                              color: AppTheme.secondaryBrown,
+                              onTap: () => context.push('/fertilizer'),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 18),
@@ -256,6 +275,39 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 }
 
+class _StartSurveyBanner extends StatelessWidget {
+  final double areaRai;
+  final VoidCallback onTap;
+  const _StartSurveyBanner({required this.areaRai, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(22),
+    child: Ink(
+      padding: const EdgeInsets.fromLTRB(18, 16, 14, 16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF173F2C), Color(0xFF2F7D58)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Row(children: [
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('พร้อมตรวจดินหรือยัง?', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 5),
+          Text('ระบบจะวางจุดตรวจให้เหมาะกับพื้นที่ ${areaRai.toStringAsFixed(1)} ไร่', style: const TextStyle(color: Colors.white70, fontSize: 13)),
+        ])),
+        const MascotCompanion(mood: MascotMood.helpful, size: 68),
+        const SizedBox(width: 4),
+        Container(width: 46, height: 46, decoration: BoxDecoration(color: Colors.white.withValues(alpha: .18), shape: BoxShape.circle), child: const Icon(Icons.arrow_forward_rounded, color: Colors.white)),
+      ]),
+    ),
+  );
+}
+
 class _DashboardHeader extends StatelessWidget {
   final String name;
   final List<Farm> farms;
@@ -263,6 +315,7 @@ class _DashboardHeader extends StatelessWidget {
   final WeatherFloodSnapshot? snapshot;
   final bool loading;
   final ValueChanged<Farm?> onFarmChanged;
+  final VoidCallback onWeather;
   final VoidCallback onNotifications;
   final VoidCallback onAi;
   final VoidCallback onLogout;
@@ -273,6 +326,7 @@ class _DashboardHeader extends StatelessWidget {
     required this.snapshot,
     required this.loading,
     required this.onFarmChanged,
+    required this.onWeather,
     required this.onNotifications,
     required this.onAi,
     required this.onLogout,
@@ -280,7 +334,14 @@ class _DashboardHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    color: const Color(0xFF28623F),
+    decoration: const BoxDecoration(
+      gradient: LinearGradient(
+        colors: [Color(0xFF075B45), Color(0xFF159A6D), Color(0xFFA1DC6C)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+      borderRadius: BorderRadius.vertical(bottom: Radius.circular(34)),
+    ),
     padding: EdgeInsets.fromLTRB(
       18,
       MediaQuery.paddingOf(context).top + 14,
@@ -290,15 +351,13 @@ class _DashboardHeader extends StatelessWidget {
     child: Stack(
       children: [
         Positioned(
-          right: -28,
-          top: 70,
-          child: Container(
-            width: 150,
-            height: 150,
-            decoration: BoxDecoration(
-              color: const Color(0xFFA9DB77).withValues(alpha: .18),
-              shape: BoxShape.circle,
-            ),
+          right: -4,
+          top: 68,
+          child: Image.asset(
+            'assets/images/chaona_mascot.png',
+            width: 112,
+            height: 112,
+            fit: BoxFit.contain,
           ),
         ),
         Column(
@@ -375,7 +434,7 @@ class _DashboardHeader extends StatelessWidget {
                     color: Colors.white.withValues(alpha: .72),
                   ),
                   filled: true,
-                  fillColor: Colors.white.withValues(alpha: .10),
+                  fillColor: Colors.white.withValues(alpha: .16),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide(
@@ -401,11 +460,15 @@ class _DashboardHeader extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 16),
-            Container(
+            InkWell(
+              onTap: onWeather,
+              borderRadius: BorderRadius.circular(22),
+              child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFFA9DB77),
-                borderRadius: BorderRadius.circular(8),
+                color: Colors.white.withValues(alpha: .18),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: Colors.white.withValues(alpha: .28)),
               ),
               child: loading
                   ? const LinearProgressIndicator()
@@ -415,7 +478,7 @@ class _DashboardHeader extends StatelessWidget {
                           snapshot == null
                               ? Icons.cloud_off_outlined
                               : Icons.wb_cloudy_outlined,
-                          color: const Color(0xFF173F2C),
+                          color: Colors.white,
                           size: 34,
                         ),
                         const SizedBox(width: 12),
@@ -428,7 +491,7 @@ class _DashboardHeader extends StatelessWidget {
                                     ? 'ยังไม่มีข้อมูลอากาศ'
                                     : '${snapshot!.temperatureC.toStringAsFixed(1)}°C  ${snapshot!.weatherLabel}',
                                 style: const TextStyle(
-                                  color: Color(0xFF173F2C),
+                                  color: Colors.white,
                                   fontSize: 18,
                                   fontWeight: FontWeight.w900,
                                 ),
@@ -438,7 +501,7 @@ class _DashboardHeader extends StatelessWidget {
                                     ? 'วาดขอบเขตแปลงเพื่อโหลดข้อมูล'
                                     : 'โอกาสฝนสูงสุด 24 ชม. ${snapshot!.rainProbability24h}%',
                                 style: const TextStyle(
-                                  color: Color(0xFF31593F),
+                                  color: Colors.white70,
                                   fontSize: 13,
                                 ),
                               ),
@@ -447,10 +510,11 @@ class _DashboardHeader extends StatelessWidget {
                         ),
                         const Icon(
                           Icons.arrow_forward_rounded,
-                          color: Color(0xFF173F2C),
+                          color: Colors.white,
                         ),
                       ],
                     ),
+              ),
             ),
           ],
         ),
@@ -492,7 +556,7 @@ class _FarmSummary extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(color: const Color(0xFFDDE6D7)),
         ),
         child: Column(
@@ -505,7 +569,7 @@ class _FarmSummary extends StatelessWidget {
                   height: 48,
                   decoration: BoxDecoration(
                     color: const Color(0xFFE8F4D8),
-                    borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(14),
                   ),
                   child: const Icon(
                     Icons.landscape_outlined,
@@ -601,7 +665,7 @@ class _Metric extends StatelessWidget {
     padding: const EdgeInsets.all(10),
     decoration: BoxDecoration(
       color: color.withValues(alpha: .09),
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(16),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -644,7 +708,7 @@ class _ActionTile extends StatelessWidget {
     child: Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFDDE6D7)),
       ),
       padding: const EdgeInsets.all(10),
@@ -685,16 +749,12 @@ class _CreateFarm extends StatelessWidget {
     padding: const EdgeInsets.all(20),
     decoration: BoxDecoration(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(18),
       border: Border.all(color: const Color(0xFFDDE6D7)),
     ),
     child: Column(
       children: [
-        const Icon(
-          Icons.add_location_alt_outlined,
-          size: 48,
-          color: Color(0xFF28623F),
-        ),
+        const MascotCompanion(mood: MascotMood.helpful, size: 108),
         const SizedBox(height: 10),
         const Text(
           'สร้างแปลงแรกเพื่อเริ่มใช้งาน',
@@ -719,7 +779,14 @@ class _Notice extends StatelessWidget {
     margin: const EdgeInsets.only(bottom: 12),
     padding: const EdgeInsets.all(12),
     color: const Color(0xFFFFF1D6),
-    child: Text(text),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const MascotCompanion(mood: MascotMood.confused, size: 50),
+        const SizedBox(width: 8),
+        Expanded(child: Text(text)),
+      ],
+    ),
   );
 }
 

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:chaona_app/app/theme.dart';
 import 'package:chaona_app/features/auth/domain/auth_input_validator.dart';
 import 'package:chaona_app/features/auth/presentation/providers/auth_provider.dart';
+import 'package:chaona_app/shared/widgets/mascot_companion.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -71,6 +72,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
             children: [
+              const Center(child: MascotCompanion(mood: MascotMood.happy, size: 112)),
+              const SizedBox(height: 8),
               Text('เริ่มต้นดูแลแปลงของคุณ', style: Theme.of(context).textTheme.headlineLarge),
               const SizedBox(height: 8),
               Text('บัญชีเดียวสำหรับแผนที่ แผนการปลูก และคำแนะนำจากข้อมูลจริง', style: Theme.of(context).textTheme.bodyMedium),
@@ -135,7 +138,7 @@ class _VerificationMessage extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(28),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Container(width: 84, height: 84, decoration: const BoxDecoration(color: AppTheme.primaryGreenLight, shape: BoxShape.circle), child: const Icon(Icons.mark_email_read_outlined, size: 42, color: AppTheme.primaryGreenDark)),
+                const MascotCompanion(mood: MascotMood.happy, size: 112, message: 'เกือบเสร็จแล้ว'),
                 const SizedBox(height: 24),
                 Text('ตรวจสอบอีเมลของคุณ', style: Theme.of(context).textTheme.headlineMedium, textAlign: TextAlign.center),
                 const SizedBox(height: 12),

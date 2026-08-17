@@ -86,7 +86,9 @@ class SoilLiveNotifier extends Notifier<SoilLiveState> {
 
     _queueSyncTimer = Timer.periodic(
       const Duration(seconds: 30),
-      (_) => _offlineQueue.flush(_readings),
+      (_) {
+        _offlineQueue.flush(_readings).catchError((_) {});
+      },
     );
 
     ref.onDispose(() {

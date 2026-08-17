@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 import 'dart:math' as math;
 
 import 'package:chaona_app/app/theme.dart';
+import 'package:chaona_app/shared/widgets/reliable_satellite_layer.dart';
 import 'package:chaona_app/features/farm_management/domain/entities/farm.dart';
 import 'package:chaona_app/features/recommendations/domain/services/planting_guidance.dart';
 
@@ -174,11 +175,7 @@ class _FarmMapScreenState extends ConsumerState<FarmMapScreen> {
               onTap: _onTap,
             ),
             children: [
-              TileLayer(
-                urlTemplate:
-                    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-                userAgentPackageName: 'com.chaona.app',
-              ),
+              reliableSatelliteLayer(),
               PolygonLayer(
                 polygons: [
                   if (pts.length >= 3)

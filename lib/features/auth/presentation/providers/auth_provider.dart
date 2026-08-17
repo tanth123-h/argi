@@ -14,10 +14,10 @@ class Auth extends _$Auth {
       return null;
     }
 
-    // Listen to auth state changes
-    supabase.auth.onAuthStateChange.listen((data) {
+    final authSubscription = supabase.auth.onAuthStateChange.listen((data) {
       state = data.session?.user;
     });
+    ref.onDispose(authSubscription.cancel);
 
     return supabase.auth.currentUser;
   }

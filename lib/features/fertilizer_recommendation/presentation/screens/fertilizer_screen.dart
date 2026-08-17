@@ -5,6 +5,8 @@ import 'package:chaona_app/core/utils/fertilizer_calculator.dart';
 import 'package:chaona_app/features/ai_chat/data/services/gemini_service.dart';
 import 'package:chaona_app/features/auth/data/demo/demo_fixtures.dart';
 import 'package:chaona_app/features/auth/presentation/providers/demo_mode_provider.dart';
+import 'package:chaona_app/features/soil_monitoring/data/repositories/soil_reading_repository.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Screen
@@ -28,6 +30,8 @@ class _FertilizerScreenState extends ConsumerState<FertilizerScreen> {
   FertilizerResult? _result;
   bool _loadingAI = false;
   String? _aiAdvice;
+  bool _loadingRealData = false;
+  String _dataSource = 'ยังไม่มีผลตรวจจริง: กรุณากรอกค่าแล็บหรือเซ็นเซอร์';
 
   static const _crops = {
     'rice': '🌾 ข้าว',
@@ -60,6 +64,48 @@ class _FertilizerScreenState extends ConsumerState<FertilizerScreen> {
         _calculate();
       }
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadLatestReading());
+  }
+
+  Future<void> _loadLatestReading() async {
+    if (ref.read(demoModeNotifierProvider) != DemoPreset.none) return;
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+    setState(() => _loadingRealData = true);
+    try {
+      final farms = await Supabase.instance.client
+          .from('farms')
+          .select('id, size, crop_type')
+          .eq('user_id', user.id)
+          .order('created_at', ascending: false)
+          .limit(1);
+      if (farms is! List || farms.isEmpty) return;
+      final farm = Map<String, dynamic>.from(farms.first as Map);
+      final rows = await SoilReadingRepository(Supabase.instance.client)
+          .latestForFarm(farm['id'] as String);
+      if (!mounted) return;
+      if (rows.isEmpty) {
+        setState(() {
+          _areaRai = ((farm['size'] as num?)?.toDouble() ?? 8000) / 1600;
+          _cropType = farm['crop_type'] as String? ?? _cropType;
+          _dataSource = 'ยังไม่มีผลตรวจจริง: ค่า N/P/K ด้านล่างเป็นค่าที่กรอกเอง';
+        });
+        return;
+      }
+      final latest = rows.first;
+      setState(() {
+        _areaRai = ((farm['size'] as num?)?.toDouble() ?? 8000) / 1600;
+        _cropType = farm['crop_type'] as String? ?? _cropType;
+        _soilN = (latest['nitrogen'] as num?)?.toDouble() ?? _soilN;
+        _soilP = (latest['phosphorus'] as num?)?.toDouble() ?? _soilP;
+        _soilK = (latest['potassium'] as num?)?.toDouble() ?? _soilK;
+        _dataSource = 'ค่าตรวจล่าสุดจากเซ็นเซอร์/บันทึกดิน';
+      });
+    } catch (_) {
+      if (mounted) setState(() => _dataSource = 'อ่านผลตรวจจริงไม่สำเร็จ: กรุณาตรวจสอบข้อมูลก่อนคำนวณ');
+    } finally {
+      if (mounted) setState(() => _loadingRealData = false);
+    }
   }
 
   void _calculate() {
@@ -96,11 +142,11 @@ class _FertilizerScreenState extends ConsumerState<FertilizerScreen> {
         phLevel: 6.5,
         areaRai: _areaRai,
       );
-      setState(() => _aiAdvice = advice);
+      if (mounted) setState(() => _aiAdvice = advice);
     } catch (_) {
-      setState(() => _aiAdvice = 'ไม่สามารถขอคำแนะนำได้ในขณะนี้');
+      if (mounted) setState(() => _aiAdvice = 'ไม่สามารถขอคำแนะนำได้ในขณะนี้');
     } finally {
-      setState(() => _loadingAI = false);
+      if (mounted) setState(() => _loadingAI = false);
     }
   }
 
@@ -136,6 +182,8 @@ class _FertilizerScreenState extends ConsumerState<FertilizerScreen> {
             onKChanged: (v) => setState(() => _soilK = v),
             onCalculate: _calculate,
           ),
+          const SizedBox(height: 10),
+          _DataSourceBanner(loading: _loadingRealData, text: _dataSource),
           if (_result != null) ...[
             const SizedBox(height: 16),
             _ResultCard(
@@ -214,6 +262,31 @@ class _FertilizerScreenState extends ConsumerState<FertilizerScreen> {
       ),
     );
   }
+}
+
+class _DataSourceBanner extends StatelessWidget {
+  final bool loading;
+  final String text;
+  const _DataSourceBanner({required this.loading, required this.text});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.amber.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.amber.shade200),
+        ),
+        child: Row(
+          children: [
+            loading
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : Icon(Icons.verified_outlined, color: Colors.amber.shade800),
+            const SizedBox(width: 8),
+            Expanded(child: Text(text, style: const TextStyle(fontSize: 12))),
+          ],
+        ),
+      );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

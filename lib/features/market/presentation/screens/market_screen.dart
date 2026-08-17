@@ -2,13 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:chaona_app/app/theme.dart';
 import 'package:chaona_app/features/market/data/services/market_price_service.dart';
+import 'package:chaona_app/features/market/data/services/nabc_index_service.dart';
 import 'package:chaona_app/features/ai_chat/data/services/gemini_service.dart';
 import 'package:intl/intl.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:chaona_app/shared/widgets/mascot_loading.dart';
 
 // ── Provider ────────────────────────────────────────────────────────────────
 
 final marketPricesProvider = FutureProvider<List<CropPrice>>((ref) async {
   return MarketPriceService().fetchFarmGatePrices();
+});
+
+final nabcIndexProvider = FutureProvider<NabcIndexSnapshot>((ref) async {
+  return NabcIndexService().fetch();
 });
 
 // ── Screen ──────────────────────────────────────────────────────────────────
@@ -53,19 +60,26 @@ class _MarketScreenState extends ConsumerState<MarketScreen> {
         ],
       ),
       body: pricesAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('โหลดราคาไม่ได้: $e')),
+        loading: () => const MascotLoading(message: 'กำลังค้นหาราคาจากแหล่งข้อมูล...'),
+        error: (e, _) => Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.storefront_outlined, size: 48, color: AppTheme.secondaryBrown), const SizedBox(height: 12), Text('โหลดราคาไม่ได้', style: Theme.of(ctx).textTheme.titleLarge), const SizedBox(height: 6), Text('ตรวจสอบการเชื่อมต่อแล้วลองใหม่', textAlign: TextAlign.center)]))),
         data: (prices) => _buildContent(ctx, prices),
       ),
     );
   }
 
   Widget _buildContent(BuildContext ctx, List<CropPrice> prices) {
+    final nabc = ref.watch(nabcIndexProvider);
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         // ── Source label ────────────────────────────────────────────────
         _SourceBadge(),
+        const SizedBox(height: 14),
+        nabc.when(
+          loading: () => const LinearProgressIndicator(),
+          error: (error, _) => _NabcIndexCard(snapshot: NabcIndexSnapshot(price: const [], production: const [], fetchedAt: DateTime.now(), error: error.toString())),
+          data: (snapshot) => _NabcIndexCard(snapshot: snapshot),
+        ),
         const SizedBox(height: 14),
 
         // ── Price list ──────────────────────────────────────────────────
@@ -122,11 +136,11 @@ class _MarketScreenState extends ConsumerState<MarketScreen> {
             ? 'ข้อมูลราคาอ้างอิงปี 2024 ไม่ใช่ราคาปัจจุบัน ห้ามแนะนำจังหวะขายจากราคานี้'
             : 'ราคาปัจจุบัน ${_selectedCrop!.pricePerKg} บาท/กก. เปลี่ยนแปลง ${_selectedCrop!.changePercent > 0 ? '+' : ''}${_selectedCrop!.changePercent.toStringAsFixed(1)}%',
       );
-      setState(() => _aiAdvice = advice);
+      if (mounted) setState(() => _aiAdvice = advice);
     } catch (e) {
-      setState(() => _aiAdvice = 'ไม่สามารถขอคำแนะนำได้ในขณะนี้');
+      if (mounted) setState(() => _aiAdvice = 'ไม่สามารถขอคำแนะนำได้ในขณะนี้');
     } finally {
-      setState(() => _loadingAI = false);
+      if (mounted) setState(() => _loadingAI = false);
     }
   }
 }
@@ -172,7 +186,87 @@ class _PriceDetail extends StatelessWidget {
     );
   }
 
+
+
   Widget _detail(String label, String value) => Padding(padding: const EdgeInsets.only(right: 8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)), const SizedBox(height: 3), Text(value, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, color: AppTheme.fieldInk))]));
+}
+
+class _NabcIndexCard extends StatelessWidget {
+  final NabcIndexSnapshot snapshot;
+  const _NabcIndexCard({required this.snapshot});
+
+  @override
+  Widget build(BuildContext context) {
+    final price = snapshot.price;
+    final production = snapshot.production;
+    final latestPrice = price.isEmpty ? null : price.last;
+    final latestProduction = production.isEmpty ? null : production.last;
+    final series = _monthlyAverage(price);
+    return Card(
+      color: const Color(0xFFEAF7F0),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.query_stats_rounded, color: AppTheme.primaryGreenDark),
+            const SizedBox(width: 8),
+            const Expanded(child: Text('แนวโน้มตลาดจาก NABC', style: TextStyle(fontWeight: FontWeight.w800))),
+            IconButton(onPressed: () {}, tooltip: 'ข้อมูลจาก NABC', icon: const Icon(Icons.verified_outlined, size: 20, color: AppTheme.primaryGreenDark)),
+          ]),
+          const Text('ดัชนีช่วยดูทิศทางตลาด ไม่ใช่ราคาขายต่อกิโลกรัม', style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+          if (snapshot.error != null) ...[
+            const SizedBox(height: 10),
+            Text(snapshot.error!, style: const TextStyle(color: Colors.orange, fontSize: 12)),
+          ],
+          if (latestPrice != null || latestProduction != null) ...[
+            const SizedBox(height: 14),
+            Row(children: [
+              Expanded(child: _indexMetric('ดัชนีราคา', latestPrice?.value, latestPrice?.changePercent, Colors.indigo)),
+              const SizedBox(width: 10),
+              Expanded(child: _indexMetric('ดัชนีผลผลิต', latestProduction?.value, latestProduction?.changePercent, AppTheme.secondaryBrown)),
+            ]),
+          ],
+          if (series.length > 1) ...[
+            const SizedBox(height: 14),
+            SizedBox(height: 120, child: LineChart(LineChartData(
+              minX: 0,
+              maxX: (series.length - 1).toDouble(),
+              minY: series.map((e) => e.y).reduce((a, b) => a < b ? a : b) - 2,
+              maxY: series.map((e) => e.y).reduce((a, b) => a > b ? a : b) + 2,
+              titlesData: const FlTitlesData(show: false),
+              gridData: const FlGridData(show: false),
+              borderData: FlBorderData(show: false),
+              lineBarsData: [LineChartBarData(spots: series, isCurved: true, color: AppTheme.primaryGreenDark, barWidth: 3, dotData: const FlDotData(show: false), belowBarData: BarAreaData(show: true, color: AppTheme.primaryGreenLight))],
+            ))),
+          ],
+          const SizedBox(height: 8),
+          Text('อัปเดตข้อมูล ${snapshot.fetchedAt.toLocal()}', style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+          const Text('ที่มา: ศูนย์ข้อมูลเกษตรแห่งชาติ (NABC) • ใช้ร่วมกับราคา OAE/MOC', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+        ]),
+      ),
+    );
+  }
+
+  Widget _indexMetric(String label, double? value, double? change, Color color) => Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(color: Colors.white.withValues(alpha: .7), borderRadius: BorderRadius.circular(12)),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label, style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+      const SizedBox(height: 4),
+      Text(value == null ? '--' : value.toStringAsFixed(2), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: color)),
+      if (change != null) Text('${change >= 0 ? '+' : ''}${change.toStringAsFixed(2)}%', style: TextStyle(fontSize: 11, color: change >= 0 ? Colors.green : Colors.red, fontWeight: FontWeight.w700)),
+    ]),
+  );
+
+  List<FlSpot> _monthlyAverage(List<NabcIndexPoint> points) {
+    final grouped = <String, List<double>>{};
+    for (final point in points) {
+      final key = '${point.yearTh}-${point.month.toString().padLeft(2, '0')}';
+      grouped.putIfAbsent(key, () => []).add(point.value);
+    }
+    final keys = grouped.keys.toList()..sort();
+    return [for (var i = 0; i < keys.length; i++) FlSpot(i.toDouble(), grouped[keys[i]]!.reduce((a, b) => a + b) / grouped[keys[i]]!.length)];
+  }
 }
 
 // ── Source Badge ─────────────────────────────────────────────────────────────

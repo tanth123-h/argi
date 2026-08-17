@@ -26,4 +26,25 @@ void main() {
     expect(SamplingPointGenerator.recommendedCount(10), 15);
     expect(SamplingPointGenerator.recommendedCount(50), 60);
   });
+
+  test('does not collapse a multi-point field survey into one line', () {
+    final points = SamplingPointGenerator().generate(
+      plotId: 'plot-2',
+      boundary: const [
+        LatLng(14, 100),
+        LatLng(14, 100.02),
+        LatLng(14.01, 100.02),
+        LatLng(14.01, 100),
+      ],
+      count: 14,
+    );
+
+    expect(points, hasLength(14));
+    expect(points.map((p) => p.longitude).toSet().length, greaterThan(1));
+    expect(points.map((p) => p.latitude).toSet().length, greaterThan(1));
+    expect(
+      points.map((p) => '${p.latitude},${p.longitude}').toSet(),
+      hasLength(14),
+    );
+  });
 }

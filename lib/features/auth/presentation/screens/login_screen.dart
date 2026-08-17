@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:chaona_app/app/theme.dart';
 import 'package:chaona_app/features/auth/domain/auth_input_validator.dart';
 import 'package:chaona_app/features/auth/presentation/providers/auth_provider.dart';
+import 'package:chaona_app/shared/widgets/mascot_companion.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -56,7 +57,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               child: Form(
                 key: _formKey,
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  Container(height: 92, decoration: BoxDecoration(color: AppTheme.primaryGreenDark, borderRadius: BorderRadius.circular(28)), child: const Icon(Icons.grass, color: Colors.white, size: 54)),
+                  Container(padding: const EdgeInsets.all(8), height: 122, decoration: BoxDecoration(gradient: const LinearGradient(colors: [AppTheme.primaryGreenDark, AppTheme.primaryGreen]), borderRadius: BorderRadius.circular(28)), child: const MascotCompanion(mood: MascotMood.helpful, size: 105)),
                   const SizedBox(height: 22),
                   Text('ชาวนา AI', style: Theme.of(context).textTheme.displayMedium, textAlign: TextAlign.center),
                   const SizedBox(height: 6),
