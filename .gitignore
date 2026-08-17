@@ -32,6 +32,8 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+.dart-appdata/
+supabase/functions/.env
 
 # Symbolication related
 app.*.symbols

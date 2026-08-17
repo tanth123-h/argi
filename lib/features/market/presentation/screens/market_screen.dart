@@ -88,6 +88,8 @@ class _MarketScreenState extends ConsumerState<MarketScreen> {
         // ── Profit Calculator ───────────────────────────────────────────
         if (_selectedCrop != null) ...[
           const SizedBox(height: 20),
+          _PriceDetail(price: _selectedCrop!),
+          const SizedBox(height: 12),
           _ProfitCalculator(
             crop: _selectedCrop!,
             quantityKg: _quantityKg,
@@ -116,10 +118,9 @@ class _MarketScreenState extends ConsumerState<MarketScreen> {
         cropType: _selectedCrop!.nameThai,
         currentPricePerKg: _selectedCrop!.pricePerKg,
         quantityKg: _quantityKg,
-        seasonalContext:
-            'ราคาปัจจุบัน ${_selectedCrop!.pricePerKg} บาท/กก. '
-            'เปลี่ยนแปลง ${_selectedCrop!.changePercent > 0 ? '+' : ''}'
-            '${_selectedCrop!.changePercent.toStringAsFixed(1)}%',
+        seasonalContext: _selectedCrop!.isReference
+            ? 'ข้อมูลราคาอ้างอิงปี 2024 ไม่ใช่ราคาปัจจุบัน ห้ามแนะนำจังหวะขายจากราคานี้'
+            : 'ราคาปัจจุบัน ${_selectedCrop!.pricePerKg} บาท/กก. เปลี่ยนแปลง ${_selectedCrop!.changePercent > 0 ? '+' : ''}${_selectedCrop!.changePercent.toStringAsFixed(1)}%',
       );
       setState(() => _aiAdvice = advice);
     } catch (e) {
@@ -128,6 +129,50 @@ class _MarketScreenState extends ConsumerState<MarketScreen> {
       setState(() => _loadingAI = false);
     }
   }
+}
+
+class _PriceDetail extends StatelessWidget {
+  final CropPrice price;
+  const _PriceDetail({required this.price});
+
+  @override
+  Widget build(BuildContext context) {
+    final perTon = price.pricePerKg * 1000;
+    final raiRevenue = price.revenuePerRai();
+    return Card(
+      color: const Color(0xFFFFFBF0),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.analytics_outlined, color: AppTheme.secondaryBrown),
+            const SizedBox(width: 8),
+            Expanded(child: Text('รายละเอียด ${price.nameThai}', style: const TextStyle(fontWeight: FontWeight.w800))),
+          ]),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(child: _detail('ราคาต่อกิโลกรัม', '${price.pricePerKg.toStringAsFixed(2)} บาท')),
+            Expanded(child: _detail('ประมาณต่อตัน', '${NumberFormat('#,##0').format(perTon)} บาท')),
+          ]),
+          const Divider(height: 22),
+          Row(children: [
+            Expanded(child: _detail('ฤดูกาล/รอบผลิต', price.season ?? 'ไม่ระบุ')),
+            Expanded(child: _detail('ผลผลิตอ้างอิง', price.yieldPerRai == null ? 'ไม่ระบุ' : '${NumberFormat('#,##0').format(price.yieldPerRai)} กก./ไร่')),
+          ]),
+          if (price.yieldPerRai != null) ...[
+            const SizedBox(height: 10),
+            _detail('รายรับขั้นต้นประมาณต่อไร่', '${NumberFormat('#,##0').format(raiRevenue)} บาท/ไร่'),
+          ],
+          const SizedBox(height: 10),
+          Text(price.isReference ? 'เป็นราคาอ้างอิงเก่า ใช้ดูแนวโน้มและทดลองคำนวณเท่านั้น' : 'ราคาแหล่งข้อมูลปัจจุบัน อาจต่างจากผู้รับซื้อในพื้นที่', style: TextStyle(color: price.isReference ? Colors.orange.shade800 : AppTheme.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          Text('แหล่งข้อมูล: ${price.source} • วันที่: ${price.priceDate}', style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+        ]),
+      ),
+    );
+  }
+
+  Widget _detail(String label, String value) => Padding(padding: const EdgeInsets.only(right: 8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)), const SizedBox(height: 3), Text(value, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, color: AppTheme.fieldInk))]));
 }
 
 // ── Source Badge ─────────────────────────────────────────────────────────────
@@ -277,6 +322,18 @@ class _PriceCard extends StatelessWidget {
                         color: AppTheme.textSecondary,
                       ),
                     ),
+                    Text(
+                      price.priceDate,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: price.isReference
+                            ? Colors.orange.shade800
+                            : AppTheme.textSecondary,
+                        fontWeight: price.isReference
+                            ? FontWeight.w700
+                            : FontWeight.normal,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -309,7 +366,9 @@ class _PriceCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
-                      '${up ? '+' : ''}${price.changePercent.toStringAsFixed(1)}%',
+                      price.isReference
+                          ? 'อ้างอิง 2024'
+                          : '${up ? '+' : ''}${price.changePercent.toStringAsFixed(1)}%',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
@@ -485,7 +544,7 @@ class _ProfitCalculator extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                onPressed: loadingAI ? null : onAskAI,
+                onPressed: loadingAI || crop.isReference ? null : onAskAI,
                 icon: loadingAI
                     ? const SizedBox(
                         width: 16,
@@ -496,6 +555,8 @@ class _ProfitCalculator extends StatelessWidget {
                 label: Text(
                   loadingAI
                       ? 'กำลังวิเคราะห์...'
+                      : crop.isReference
+                      ? 'ต้องมีราคาปัจจุบันก่อนวิเคราะห์การขาย'
                       : '🤖 ถาม AI: ควรขายตอนนี้ไหม?',
                 ),
                 style: OutlinedButton.styleFrom(

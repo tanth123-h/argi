@@ -1,5 +1,8 @@
 import 'package:google_generative_ai/google_generative_ai.dart';
+import 'dart:typed_data';
+import 'dart:convert';
 import 'package:chaona_app/core/constants/app_constants.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Wrapper around the configured Gemini model.
 /// All prompts are in Thai context for Thai farmers.
@@ -14,7 +17,8 @@ class GeminiService {
   void init() {
     if (_initialized) return;
     if (AppConstants.geminiApiKey.isEmpty) {
-      throw StateError('Gemini API key is not configured');
+      _initialized = true;
+      return;
     }
     _model = GenerativeModel(
       model: AppConstants.geminiModel,
@@ -45,11 +49,35 @@ class GeminiService {
     _initialized = true;
   }
 
+  Future<String> _proxy({
+    required String prompt,
+    Uint8List? imageBytes,
+    String? mimeType,
+  }) async {
+    final response = await Supabase.instance.client.functions.invoke(
+      'gemini-proxy',
+      body: {
+        'prompt': prompt,
+        if (imageBytes != null) 'imageBase64': base64Encode(imageBytes),
+        if (mimeType != null) 'mimeType': mimeType,
+      },
+    );
+    final data = response.data;
+    if (data is Map && data['text'] is String) return data['text'] as String;
+    throw StateError('Gemini proxy returned invalid data');
+  }
+
+  Future<String> _generateText(String prompt) async {
+    init();
+    if (AppConstants.geminiApiKey.isEmpty) return _proxy(prompt: prompt);
+    final response = await _model.generateContent([Content.text(prompt)]);
+    return response.text ?? 'ไม่สามารถวิเคราะห์ได้';
+  }
+
   static String readableError(Object error) {
     final raw = error.toString();
     if (raw.contains('API key is not configured')) {
-      return 'ยังไม่ได้ตั้งค่า Gemini API key ใน Android Studio\n'
-          'เพิ่ม --dart-define=GEMINI_API_KEY=คีย์ใหม่ แล้วเปิดแอปใหม่';
+      return 'ยังไม่ได้ตั้งค่า AI: deploy Supabase Function gemini-proxy หรือเพิ่ม GEMINI_API_KEY สำหรับการพัฒนา';
     }
     if (raw.contains('403') || raw.toLowerCase().contains('permission')) {
       return 'Gemini ปฏิเสธ API key นี้ กรุณาตรวจสอบว่า key ยังใช้งานได้และเปิด Gemini API แล้ว';
@@ -97,6 +125,12 @@ class GeminiService {
     }
     contents.add(Content.text('$contextPrefix$message'));
 
+    if (AppConstants.geminiApiKey.isEmpty) {
+      final historyText = history
+          .map((item) => '${item['role']}: ${item['content']}')
+          .join('\n');
+      return _proxy(prompt: '$historyText\n$contextPrefix$message');
+    }
     final response = await _model.generateContent(contents);
     return response.text ?? 'ขออภัย ไม่สามารถตอบได้ในขณะนี้';
   }
@@ -132,8 +166,7 @@ class GeminiService {
 5. คำเตือนหากค่าดินผิดปกติ
 ''';
 
-    final response = await _model.generateContent([Content.text(prompt)]);
-    return response.text ?? 'ไม่สามารถวิเคราะห์ได้';
+    return _generateText(prompt);
   }
 
   /// Planting strategy — spacing, quantity, timing
@@ -162,8 +195,7 @@ ${soilData != null ? "ข้อมูลดิน: $soilData" : ""}
 8. ผลกำไรที่คาดหวัง (บาท) ที่ราคาตลาดปัจจุบัน
 ''';
 
-    final response = await _model.generateContent([Content.text(prompt)]);
-    return response.text ?? 'ไม่สามารถวางแผนได้';
+    return _generateText(prompt);
   }
 
   /// Price forecast — should I sell now?
@@ -190,8 +222,7 @@ ${seasonalContext != null ? "บริบทฤดูกาล: $seasonalContext
 4. คำแนะนำเชิงกลยุทธ์
 ''';
 
-    final response = await _model.generateContent([Content.text(prompt)]);
-    return response.text ?? 'ไม่สามารถวิเคราะห์ได้';
+    return _generateText(prompt);
   }
 
   /// Disease detection analysis from image description or symptoms
@@ -214,7 +245,24 @@ ${seasonalContext != null ? "บริบทฤดูกาล: $seasonalContext
 5. ค่าใช้จ่ายโดยประมาณ
 ''';
 
-    final response = await _model.generateContent([Content.text(prompt)]);
-    return response.text ?? 'ไม่สามารถวินิจฉัยได้';
+    return _generateText(prompt);
+  }
+
+  Future<String> analyzeLeafImage({
+    required String cropType,
+    required Uint8List imageBytes,
+    required String mimeType,
+  }) async {
+    init();
+    final prompt = '''วิเคราะห์ภาพใบพืชชนิด $cropType นี้แบบคัดกรองเบื้องต้น
+ตอบเป็นภาษาไทยและแยกหัวข้อ: สิ่งที่สังเกตได้, โรค/แมลงที่เป็นไปได้, ความมั่นใจ, ขั้นตอนตรวจยืนยัน, การปฏิบัติที่ปลอดภัย
+ห้ามยืนยันโรคจากภาพเพียงอย่างเดียว ห้ามสร้างชื่อสารเคมี อัตราใช้ หรือแหล่งอ้างอิงใหม่ หากไม่มีข้อมูลยืนยันให้บอกว่าต้องส่งตรวจ''';
+    if (AppConstants.geminiApiKey.isEmpty) {
+      return _proxy(prompt: prompt, imageBytes: imageBytes, mimeType: mimeType);
+    }
+    final response = await _model.generateContent([
+      Content.multi([TextPart(prompt), DataPart(mimeType, imageBytes)]),
+    ]);
+    return response.text ?? 'ไม่สามารถวิเคราะห์ภาพได้';
   }
 }

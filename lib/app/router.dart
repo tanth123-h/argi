@@ -12,6 +12,9 @@ import 'package:chaona_app/features/soil_monitoring/presentation/screens/soil_mo
 import 'package:chaona_app/features/soil_survey/presentation/screens/farm_soil_survey_screen.dart';
 import 'package:chaona_app/features/farm_management/domain/entities/farm.dart';
 import 'package:chaona_app/features/fertilizer_recommendation/presentation/screens/fertilizer_screen.dart';
+import 'package:chaona_app/features/weather_flood/presentation/screens/weather_flood_screen.dart';
+import 'package:chaona_app/features/ai_chat/presentation/screens/farm_analysis_screen.dart';
+import 'package:chaona_app/features/farm_tools/presentation/screens/farm_tools_screen.dart';
 import 'package:chaona_app/shared/widgets/main_scaffold.dart';
 
 part 'router.g.dart';
@@ -43,6 +46,18 @@ GoRouter router(RouterRef ref) {
       GoRoute(
         path: '/farm-survey',
         builder: (ctx, s) => FarmSoilSurveyScreen(farm: s.extra! as Farm),
+      ),
+      GoRoute(
+        path: '/weather-flood',
+        builder: (ctx, s) => const WeatherFloodScreen(),
+      ),
+      GoRoute(
+        path: '/farm-analysis',
+        builder: (ctx, s) => const FarmAnalysisScreen(),
+      ),
+      GoRoute(
+        path: '/farm-tools',
+        builder: (ctx, s) => const FarmToolsScreen(),
       ),
       StatefulShellRoute.indexedStack(
         builder: (ctx, state, shell) => MainScaffold(shell: shell),

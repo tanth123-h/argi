@@ -4,6 +4,14 @@ import '../entities/sampling_point.dart';
 enum SamplingPattern { zigzag, grid }
 
 class SamplingPointGenerator {
+  /// Field-screening recommendation based on LDD guidance of roughly
+  /// 15-20 points across a 10-20 rai management area. A laboratory composite
+  /// sample is still required for fertilizer decisions.
+  static int recommendedCount(double areaRai) {
+    final points = (areaRai * 1.5).ceil();
+    return points.clamp(5, 60).toInt();
+  }
+
   List<SamplingPoint> generate({
     required String plotId,
     required List<LatLng> boundary,

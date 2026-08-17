@@ -76,8 +76,7 @@ class MarketPriceService {
 
   /// Static reference prices — OAE annual average 2024
   List<CropPrice> _staticPrices() {
-    final now = DateTime.now();
-    final dateStr = '${now.day}/${now.month}/${now.year} (ราคาอ้างอิงล่าสุด)';
+    const dateStr = 'ปี 2024 (ข้อมูลอ้างอิง ไม่ใช่ราคาปัจจุบัน)';
 
     return [
       CropPrice(
@@ -85,9 +84,10 @@ class MarketPriceService {
         pricePerKg: 8.50,
         unit: 'บาท/กก.',
         priceDate: dateStr,
-        changePercent: 0.8,
+        changePercent: 0,
         source: 'OAE (สศก.) อ้างอิง',
         sourceUrl: 'https://oae.go.th',
+        isReference: true,
         cropType: 'rice',
         yieldPerRai: 400,
         season: 'นาปี / นาปรัง',
@@ -97,9 +97,10 @@ class MarketPriceService {
         pricePerKg: 2.80,
         unit: 'บาท/กก.',
         priceDate: dateStr,
-        changePercent: -1.2,
+        changePercent: 0,
         source: 'OAE (สศก.) อ้างอิง',
         sourceUrl: 'https://oae.go.th',
+        isReference: true,
         cropType: 'cassava',
         yieldPerRai: 3500,
         season: 'ปีละครั้ง',
@@ -109,9 +110,10 @@ class MarketPriceService {
         pricePerKg: 3.10,
         unit: 'บาท/กก.',
         priceDate: dateStr,
-        changePercent: -0.5,
+        changePercent: 0,
         source: 'OAE (สศก.) อ้างอิง',
         sourceUrl: 'https://oae.go.th',
+        isReference: true,
         cropType: 'cassava',
         yieldPerRai: 3200,
         season: 'ปีละครั้ง',
@@ -121,9 +123,10 @@ class MarketPriceService {
         pricePerKg: 8.80,
         unit: 'บาท/กก.',
         priceDate: dateStr,
-        changePercent: 2.1,
+        changePercent: 0,
         source: 'OAE (สศก.) อ้างอิง',
         sourceUrl: 'https://oae.go.th',
+        isReference: true,
         cropType: 'corn',
         yieldPerRai: 800,
         season: 'ปีละ 2 ครั้ง',
@@ -133,9 +136,10 @@ class MarketPriceService {
         pricePerKg: 1.10,
         unit: 'บาท/กก.',
         priceDate: dateStr,
-        changePercent: 0.2,
+        changePercent: 0,
         source: 'OAE (สศก.) อ้างอิง',
         sourceUrl: 'https://oae.go.th',
+        isReference: true,
         cropType: 'sugarcane',
         yieldPerRai: 10000,
         season: 'ปีละครั้ง',
@@ -145,9 +149,10 @@ class MarketPriceService {
         pricePerKg: 60.0,
         unit: 'บาท/กก.',
         priceDate: dateStr,
-        changePercent: 1.5,
+        changePercent: 0,
         source: 'OAE (สศก.) อ้างอิง',
         sourceUrl: 'https://oae.go.th',
+        isReference: true,
         cropType: 'rubber',
         yieldPerRai: 300,
         season: 'กรีด 8 เดือน/ปี',
@@ -157,9 +162,10 @@ class MarketPriceService {
         pricePerKg: 5.20,
         unit: 'บาท/กก.',
         priceDate: dateStr,
-        changePercent: -0.8,
+        changePercent: 0,
         source: 'OAE (สศก.) อ้างอิง',
         sourceUrl: 'https://oae.go.th',
+        isReference: true,
         cropType: 'palm',
         yieldPerRai: 2800,
         season: 'ทุก 15-20 วัน',
@@ -181,6 +187,7 @@ class CropPrice {
   final String? cropType;
   final double? yieldPerRai;
   final String? season;
+  final bool isReference;
 
   const CropPrice({
     required this.nameThai,
@@ -193,6 +200,7 @@ class CropPrice {
     this.cropType,
     this.yieldPerRai,
     this.season,
+    this.isReference = false,
   });
 
   /// Revenue estimate per rai

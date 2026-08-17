@@ -79,7 +79,9 @@ class SoilMonitoringScreen extends ConsumerWidget {
           const SizedBox(height: 14),
 
           // ── Moisture Gauge ───────────────────────────────────────────────
-          _MoistureGaugeCard(moisture: latest == null ? null : latest.soil.round()),
+          _MoistureGaugeCard(
+            moisture: latest == null ? null : latest.soil.round(),
+          ),
           const SizedBox(height: 14),
 
           // ── Temp / Humidity / pH ─────────────────────────────────────────
@@ -196,10 +198,15 @@ class _MonitorModePanelState extends ConsumerState<_MonitorModePanel> {
 
   Future<void> _loadFarms() async {
     try {
-      final rows = await _client.from('farms').select('id,name').order('created_at');
+      final rows = await _client
+          .from('farms')
+          .select('id,name')
+          .order('created_at');
       if (!mounted) return;
       setState(() {
-        _farms = (rows as List).map((row) => Map<String, dynamic>.from(row)).toList();
+        _farms = (rows as List)
+            .map((row) => Map<String, dynamic>.from(row))
+            .toList();
         _farmId = _farms.isEmpty ? null : _farms.first['id'] as String;
         _loading = false;
       });
@@ -213,10 +220,16 @@ class _MonitorModePanelState extends ConsumerState<_MonitorModePanel> {
     final farmId = _farmId;
     if (farmId == null) return;
     try {
-      final rows = await _client.from('plots').select('id,name').eq('farm_id', farmId).order('created_at');
+      final rows = await _client
+          .from('plots')
+          .select('id,name')
+          .eq('farm_id', farmId)
+          .order('created_at');
       if (!mounted) return;
       setState(() {
-        _plots = (rows as List).map((row) => Map<String, dynamic>.from(row)).toList();
+        _plots = (rows as List)
+            .map((row) => Map<String, dynamic>.from(row))
+            .toList();
         _plotId = null;
       });
       _configureStationary();
@@ -230,10 +243,9 @@ class _MonitorModePanelState extends ConsumerState<_MonitorModePanel> {
     if (_mode != _MonitorMode.stationary) {
       ref.read(soilLiveProvider.notifier).disableStationaryPersistence();
     } else if (farmId != null) {
-      ref.read(soilLiveProvider.notifier).configureStationary(
-        farmId: farmId,
-        plotId: _plotId,
-      );
+      ref
+          .read(soilLiveProvider.notifier)
+          .configureStationary(farmId: farmId, plotId: _plotId);
     }
   }
 
@@ -253,23 +265,31 @@ class _MonitorModePanelState extends ConsumerState<_MonitorModePanel> {
           position = await Geolocator.getCurrentPosition();
         }
       } catch (_) {}
-      await ref.read(soilLiveProvider.notifier).saveHandheld(
-        farmId: farmId,
-        plotId: _plotId,
-        deviceId: widget.latest?.device ?? 'handheld-01',
-        latitude: position?.latitude,
-        longitude: position?.longitude,
-      );
+      final result = await ref
+          .read(soilLiveProvider.notifier)
+          .saveHandheld(
+            farmId: farmId,
+            plotId: _plotId,
+            deviceId: widget.latest?.device ?? 'handheld-01',
+            latitude: position?.latitude,
+            longitude: position?.longitude,
+          );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('บันทึกค่าจากเครื่องพกพาแล้ว')),
+          SnackBar(
+            content: Text(
+              result == SoilSaveResult.saved
+                  ? 'บันทึกค่าจากเครื่องพกพาแล้ว'
+                  : 'เก็บไว้ในเครื่องแล้ว ระบบจะส่งขึ้นเมื่ออินเทอร์เน็ตกลับมา',
+            ),
+          ),
         );
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('บันทึกไม่สำเร็จ: $error')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('บันทึกไม่สำเร็จ: $error')));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -284,12 +304,23 @@ class _MonitorModePanelState extends ConsumerState<_MonitorModePanel> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('แหล่งตรวจวัด', style: TextStyle(fontWeight: FontWeight.w800)),
+            const Text(
+              'แหล่งตรวจวัด',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
             const SizedBox(height: 10),
             SegmentedButton<_MonitorMode>(
               segments: const [
-                ButtonSegment(value: _MonitorMode.handheld, label: Text('เครื่องพกพา'), icon: Icon(Icons.handyman_outlined)),
-                ButtonSegment(value: _MonitorMode.stationary, label: Text('สถานีประจำแปลง'), icon: Icon(Icons.sensors_outlined)),
+                ButtonSegment(
+                  value: _MonitorMode.handheld,
+                  label: Text('เครื่องพกพา'),
+                  icon: Icon(Icons.handyman_outlined),
+                ),
+                ButtonSegment(
+                  value: _MonitorMode.stationary,
+                  label: Text('สถานีประจำแปลง'),
+                  icon: Icon(Icons.sensors_outlined),
+                ),
               ],
               selected: {_mode},
               onSelectionChanged: (value) {
@@ -307,7 +338,14 @@ class _MonitorModePanelState extends ConsumerState<_MonitorModePanel> {
               DropdownButtonFormField<String>(
                 value: _farmId,
                 decoration: const InputDecoration(labelText: 'ฟาร์ม'),
-                items: _farms.map((farm) => DropdownMenuItem<String>(value: farm['id'] as String, child: Text(farm['name'] as String))).toList(),
+                items: _farms
+                    .map(
+                      (farm) => DropdownMenuItem<String>(
+                        value: farm['id'] as String,
+                        child: Text(farm['name'] as String),
+                      ),
+                    )
+                    .toList(),
                 onChanged: (value) {
                   setState(() => _farmId = value);
                   _loadPlots();
@@ -315,11 +353,23 @@ class _MonitorModePanelState extends ConsumerState<_MonitorModePanel> {
               ),
               const SizedBox(height: 10),
               DropdownButtonFormField<String?>(
-                value: _plots.any((plot) => plot['id'] == _plotId) ? _plotId : null,
-                decoration: const InputDecoration(labelText: 'แปลงย่อย (ถ้ามี)'),
+                value: _plots.any((plot) => plot['id'] == _plotId)
+                    ? _plotId
+                    : null,
+                decoration: const InputDecoration(
+                  labelText: 'แปลงย่อย (ถ้ามี)',
+                ),
                 items: [
-                  const DropdownMenuItem<String?>(value: null, child: Text('ยังไม่ระบุแปลงย่อย')),
-                  ..._plots.map((plot) => DropdownMenuItem<String>(value: plot['id'] as String, child: Text(plot['name'] as String))),
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('ยังไม่ระบุแปลงย่อย'),
+                  ),
+                  ..._plots.map(
+                    (plot) => DropdownMenuItem<String>(
+                      value: plot['id'] as String,
+                      child: Text(plot['name'] as String),
+                    ),
+                  ),
                 ],
                 onChanged: (value) {
                   setState(() => _plotId = value);
@@ -329,16 +379,32 @@ class _MonitorModePanelState extends ConsumerState<_MonitorModePanel> {
               const SizedBox(height: 10),
               if (_mode == _MonitorMode.handheld)
                 FilledButton.icon(
-                  onPressed: widget.latest == null || _saving ? null : _saveHandheld,
-                  icon: _saving ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.save_outlined),
+                  onPressed: widget.latest == null || _saving
+                      ? null
+                      : _saveHandheld,
+                  icon: _saving
+                      ? const SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save_outlined),
                   label: const Text('บันทึกค่าจุดนี้พร้อม GPS'),
                 )
               else
-                const Text('เมื่อเลือกฟาร์มแล้ว ค่าจาก MQTT จะถูกบันทึกอัตโนมัติ', style: TextStyle(color: AppTheme.textSecondary)),
+                const Text(
+                  'เมื่อเลือกฟาร์มแล้ว ค่าจาก MQTT จะถูกบันทึกอัตโนมัติ',
+                  style: TextStyle(color: AppTheme.textSecondary),
+                ),
             ],
             if (_farmId != null && widget.latest != null) ...[
               const SizedBox(height: 8),
-              Text('พร้อมบันทึกจาก ${widget.latest!.device}', style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+              Text(
+                'พร้อมบันทึกจาก ${widget.latest!.device}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.textSecondary,
+                ),
+              ),
             ],
           ],
         ),

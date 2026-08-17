@@ -20,4 +20,10 @@ void main() {
     expect(points.every((p) => p.longitude >= 100 && p.longitude <= 100.01), isTrue);
     expect(points.map((p) => p.id).toSet(), hasLength(5));
   });
+
+  test('recommended count scales with farm area and has a small-farm minimum', () {
+    expect(SamplingPointGenerator.recommendedCount(1), 5);
+    expect(SamplingPointGenerator.recommendedCount(10), 15);
+    expect(SamplingPointGenerator.recommendedCount(50), 60);
+  });
 }

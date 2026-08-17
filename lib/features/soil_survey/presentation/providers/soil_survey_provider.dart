@@ -36,7 +36,11 @@ class SoilSurveyNotifier extends Notifier<SoilSurveyState> {
         : plot.boundary;
     state = SoilSurveyState(
       plot: plot,
-      points: _generator.generate(plotId: plot.id, boundary: boundary, count: 5),
+      points: _generator.generate(
+        plotId: plot.id,
+        boundary: boundary,
+        count: SamplingPointGenerator.recommendedCount(plot.areaRai),
+      ),
     );
   }
 
