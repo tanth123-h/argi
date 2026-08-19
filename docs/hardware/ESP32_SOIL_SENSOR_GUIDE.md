@@ -1,5 +1,9 @@
 # ESP32 Handheld Soil Sensor Guide
 
+> Read [CHAONA_HARDWARE_BUILD_GUIDE.md](CHAONA_HARDWARE_BUILD_GUIDE.md) first.
+> It contains the current stationary and handheld power diagrams, protection
+> requirements, and the important `ECNPKPH` versus `ECTHNPKPH` warning.
+
 ## Hardware
 
 - ESP32 NodeMCU ESP-WROOM-32 with CH340 USB-C
@@ -57,7 +61,10 @@ From the SN-3002 manual:
 - Default address: `0x01`
 - Default serial: `4800 baud, 8 data bits, no parity, 1 stop bit`
 - Configurable baud rates: `2400`, `4800`, `9600`
-- Registers starting at `0x0000`: moisture x10, temperature x10, EC, pH x10, N, P, K
+- The seven-register sequence moisture x10, temperature x10, EC, pH x10, N, P,
+  K applies only when the exact probe is the temperature/moisture variant and
+  its manual confirms this map. Do not use it automatically for
+  `ECNPKPH-N01`.
 - Sensor wires: brown V+, black GND, yellow RS485-A, blue RS485-B
 
 NPK values are described by the manual as temporary/read-write values, so confirm your exact unit's calibration and register behavior before treating them as laboratory-grade live measurements.
@@ -95,4 +102,3 @@ For first bring-up, leave `API_URL` empty and verify LCD + Serial Monitor first.
 4. Confirm values against the sensor vendor software or USB-RS485 adapter.
 5. Add Wi-Fi upload.
 6. Add the Flutter live sample screen.
-

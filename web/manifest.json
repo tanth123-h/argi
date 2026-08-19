@@ -1,11 +1,11 @@
 {
-    "name": "chaona_app",
-    "short_name": "chaona_app",
+    "name": "Grow a Garden",
+    "short_name": "Grow a Garden",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#F4F7F1",
+    "theme_color": "#0B6B4A",
+    "description": "Smart farming tools for healthier fields.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

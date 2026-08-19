@@ -10,7 +10,7 @@
 const char* WIFI_SSID = "YOUR_WIFI_NAME";
 const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
 const char* API_URL = ""; // Example: https://your-api.example.com/sensor/ingest
-const char* DEVICE_ID = "handheld-01";
+const char* DEVICE_ID = "grow-scout-01";
 const char* MQTT_HOST = "broker.emqx.io";
 constexpr uint16_t MQTT_PORT = 1883;
 const char* MQTT_TOPIC = "farm/esp32/sensors";
@@ -19,7 +19,11 @@ constexpr int RS485_RX = 16;
 constexpr int RS485_TX = 17;
 constexpr int RS485_DIR = 4; // MAX485 DE and /RE tied together
 constexpr uint8_t SENSOR_ADDRESS = 0x01;
-constexpr uint32_t SENSOR_BAUD = 4800;
+// NPK-only profile matching the photographed SOIL NPK STORAGE probe.
+// If the AF333 seller manual specifies another profile, change these values
+// together after testing with a USB-RS485 adapter.
+constexpr uint32_t SENSOR_BAUD = 9600;
+constexpr uint16_t NPK_START_REGISTER = 0x001E;
 
 HardwareSerial SensorSerial(2);
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -27,10 +31,6 @@ WiFiClient wifiClient;
 PubSubClient mqtt(wifiClient);
 
 struct SoilReading {
-  float moisture;
-  float temperature;
-  uint16_t ec;
-  float ph;
   uint16_t nitrogen;
   uint16_t phosphorus;
   uint16_t potassium;
@@ -83,30 +83,22 @@ bool readRegisters(uint16_t start, uint16_t count, uint16_t* values) {
 }
 
 bool readSoil(SoilReading& reading) {
-  uint16_t registers[7];
-  if (!readRegisters(0x0000, 7, registers)) return false;
-  reading.moisture = registers[0] / 10.0f;
-  reading.temperature = static_cast<int16_t>(registers[1]) / 10.0f;
-  reading.ec = registers[2];
-  reading.ph = registers[3] / 10.0f;
-  reading.nitrogen = registers[4];
-  reading.phosphorus = registers[5];
-  reading.potassium = registers[6];
+  uint16_t registers[3];
+  if (!readRegisters(NPK_START_REGISTER, 3, registers)) return false;
+  reading.nitrogen = registers[0];
+  reading.phosphorus = registers[1];
+  reading.potassium = registers[2];
   return true;
 }
 
 void showReading(const SoilReading& reading) {
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("M:");
-  lcd.print(reading.moisture, 1);
-  lcd.print(" pH:");
-  lcd.print(reading.ph, 1);
-  lcd.setCursor(0, 1);
   lcd.print("N:");
   lcd.print(reading.nitrogen);
   lcd.print(" P:");
   lcd.print(reading.phosphorus);
+  lcd.setCursor(0, 1);
   lcd.print(" K:");
   lcd.print(reading.potassium);
 }
@@ -117,11 +109,7 @@ void uploadReading(const SoilReading& reading) {
   http.begin(API_URL);
   http.addHeader("Content-Type", "application/json");
   String json = "{\"device_id\":\"" + String(DEVICE_ID) +
-                "\",\"moisture\":" + String(reading.moisture, 1) +
-                ",\"temperature\":" + String(reading.temperature, 1) +
-                ",\"ec\":" + String(reading.ec) +
-                ",\"ph\":" + String(reading.ph, 1) +
-                ",\"nitrogen\":" + String(reading.nitrogen) +
+                "\",\"nitrogen\":" + String(reading.nitrogen) +
                 ",\"phosphorus\":" + String(reading.phosphorus) +
                 ",\"potassium\":" + String(reading.potassium) + "}";
   const int status = http.POST(json);
@@ -140,11 +128,7 @@ void publishReading(const SoilReading& reading) {
   ensureMqtt();
   if (!mqtt.connected()) return;
   String json = "{\"device_id\":\"" + String(DEVICE_ID) +
-                "\",\"moisture\":" + String(reading.moisture, 1) +
-                ",\"temperature\":" + String(reading.temperature, 1) +
-                ",\"ec\":" + String(reading.ec) +
-                ",\"ph\":" + String(reading.ph, 1) +
-                ",\"nitrogen\":" + String(reading.nitrogen) +
+                "\",\"nitrogen\":" + String(reading.nitrogen) +
                 ",\"phosphorus\":" + String(reading.phosphorus) +
                 ",\"potassium\":" + String(reading.potassium) +
                 ",\"modbus_ok\":true}";
@@ -172,8 +156,7 @@ void setup() {
 void loop() {
   SoilReading reading{};
   if (readSoil(reading)) {
-    Serial.printf("M %.1f%% T %.1fC EC %u pH %.1f N %u P %u K %u\n",
-                  reading.moisture, reading.temperature, reading.ec, reading.ph,
+    Serial.printf("N %u mg/kg P %u mg/kg K %u mg/kg\n",
                   reading.nitrogen, reading.phosphorus, reading.potassium);
     showReading(reading);
     uploadReading(reading);
