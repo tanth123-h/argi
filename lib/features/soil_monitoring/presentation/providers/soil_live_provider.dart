@@ -17,7 +17,7 @@ enum SoilSaveResult { saved, queued }
 
 // ── State ──────────────────────────────────────────────────────────────────
 
-enum SoilChartMetric { soil, temperature, humidity, ph }
+enum SoilChartMetric { nitrogen, phosphorus, potassium }
 
 class SoilLiveState {
   final BrokerStatus broker;
@@ -31,7 +31,7 @@ class SoilLiveState {
     this.device = DeviceStatus.unknown,
     this.latest,
     this.history = const [],
-    this.chartMetric = SoilChartMetric.soil,
+    this.chartMetric = SoilChartMetric.nitrogen,
   });
 
   SoilLiveState copyWith({
