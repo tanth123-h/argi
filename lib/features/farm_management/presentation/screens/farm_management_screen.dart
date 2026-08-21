@@ -4,10 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:flutter_map/flutter_map.dart';
 
 import 'package:chaona_app/app/theme.dart';
+import 'package:chaona_app/shared/widgets/reliable_satellite_layer.dart';
 import 'package:chaona_app/features/farm_management/domain/entities/farm.dart';
 import 'farm_map_screen.dart';
+import 'package:chaona_app/shared/widgets/mascot_loading.dart';
 
 class FarmManagementScreen extends ConsumerStatefulWidget {
   const FarmManagementScreen({super.key});
@@ -528,7 +531,7 @@ class _FarmManagementScreenState extends ConsumerState<FarmManagementScreen> {
       ],
     ),
     body: _loading
-        ? const Center(child: CircularProgressIndicator())
+        ? const MascotLoading(message: 'กำลังโหลดแปลงของคุณ...')
         : _error != null
         ? _ErrorState(message: _error!, onRetry: _loadFarms)
         : _farms.isEmpty
@@ -576,6 +579,7 @@ class _EmptyState extends StatelessWidget {
               color: AppTheme.primaryGreenDark,
             ),
           ),
+          Image.asset('assets/images/mascot/mascot_map.png', width: 88, height: 88),
           const SizedBox(height: 20),
           Text(
             'ยังไม่มีแปลง',
@@ -703,6 +707,10 @@ class _FarmCard extends StatelessWidget {
               ),
             ],
           ),
+          if (farm.boundary.length >= 3) ...[
+            const SizedBox(height: 14),
+            _FarmMiniMap(farm: farm, onTap: onOpenMap),
+          ],
           const SizedBox(height: 14),
           Row(
             children: [
@@ -740,6 +748,53 @@ class _FarmCard extends StatelessWidget {
         ],
       ),
     ),
+  );
+}
+
+class _FarmMiniMap extends StatelessWidget {
+  final Farm farm;
+  final VoidCallback onTap;
+  const _FarmMiniMap({required this.farm, required this.onTap});
+
+  LatLng get center {
+    final lat = farm.boundary.map((p) => p.latitude).reduce((a, b) => a + b) / farm.boundary.length;
+    final lng = farm.boundary.map((p) => p.longitude).reduce((a, b) => a + b) / farm.boundary.length;
+    return LatLng(lat, lng);
+  }
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(16),
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: SizedBox(
+        height: 154,
+        child: Stack(children: [
+          FlutterMap(
+            options: MapOptions(initialCenter: center, initialZoom: 15.5, interactionOptions: const InteractionOptions(flags: InteractiveFlag.none)),
+            children: [
+              reliableSatelliteLayer(),
+              PolygonLayer(polygons: [Polygon(points: farm.boundary, color: const Color(0x6637B77A), borderColor: Colors.white, borderStrokeWidth: 3)]),
+              MarkerLayer(markers: [Marker(point: center, width: 32, height: 32, child: Container(decoration: BoxDecoration(color: AppTheme.primaryGreenDark, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)), child: const Icon(Icons.eco, size: 18, color: Colors.white))) ]),
+            ],
+          ),
+          Positioned(left: 10, top: 10, child: _MapChip(text: 'ภาพดาวเทียม', icon: Icons.satellite_alt_outlined)),
+          Positioned(right: 10, bottom: 10, child: _MapChip(text: 'แตะเพื่อเปิดแผนที่', icon: Icons.open_in_full)),
+        ]),
+      ),
+    ),
+  );
+}
+
+class _MapChip extends StatelessWidget {
+  final String text;
+  final IconData icon;
+  const _MapChip({required this.text, required this.icon});
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(color: Colors.black.withOpacity(.68), borderRadius: BorderRadius.circular(18)),
+    child: Padding(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 14, color: Colors.white), const SizedBox(width: 5), Text(text, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700))])),
   );
 }
 

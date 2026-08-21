@@ -12,7 +12,7 @@ import 'package:chaona_app/features/soil_monitoring/domain/entities/sensor_data.
 /// MQTT datasource — connects to broker.emqx.io and subscribes to
 /// [AppConstants.mqttTopic] (farm/esp32/sensors).
 ///
-/// Data source: ESP32 + MAX485 + 7-in-1 Modbus NPK soil sensor
+/// Data source: ESP32 + MAX485 + NPK-only Modbus soil sensor
 /// Hardware: RS485 → Modbus → ESP32 → MQTT (broker.emqx.io)
 /// Protocol: MQTT 3.1.1 / JSON payload, published every 2 seconds
 class MqttDatasource {
@@ -85,6 +85,21 @@ class MqttDatasource {
       );
       try {
         final json = jsonDecode(raw) as Map<String, dynamic>;
+
+        // Heartbeats describe connectivity, not a soil sample. Keeping them
+        // out of the data stream prevents a healthy sample being replaced by
+        // a temporary `not_read` state every few seconds.
+        final isHeartbeat = json['sensor_status'] == 'not_read' &&
+            json['modbus_ok'] != true &&
+            !json.containsKey('nitrogen') &&
+            !json.containsKey('phosphorus') &&
+            !json.containsKey('potassium');
+        if (isHeartbeat) continue;
+
+        // Keep a CRC-valid all-zero reading visible. Zero can be a genuine
+        // sensor result, and hiding it makes it impossible to diagnose the
+        // sensor or show the farmer what was actually received.
+
         _dataController.add(_parse(json));
       } catch (e) {
         debugPrint('[MQTT] bad payload ignored: $e\n$raw');

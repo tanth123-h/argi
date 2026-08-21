@@ -78,52 +78,65 @@ class SoilMonitoringScreen extends ConsumerWidget {
           _MonitorModePanel(latest: latest),
           const SizedBox(height: 14),
 
-          // ── Moisture Gauge ───────────────────────────────────────────────
-          _MoistureGaugeCard(moisture: latest == null ? null : latest.soil.round()),
+          // The connected probe is NPK-only. Do not present missing fields as
+          // real moisture, temperature, humidity, EC, or pH measurements.
+          const _NpkOnlyInfoCard(),
           const SizedBox(height: 14),
 
-          // ── Temp / Humidity / pH ─────────────────────────────────────────
-          Row(
-            children: [
-              Expanded(
-                child: _MetricCard(
-                  label: 'อุณหภูมิ',
-                  value: latest == null
-                      ? '--'
-                      : latest.temperature.toStringAsFixed(1),
-                  unit: '°C',
-                  icon: Icons.thermostat_rounded,
+          // ── N / P / K ────────────────────────────────────────────────────
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 620;
+              final cardWidth = compact
+                  ? (constraints.maxWidth - 12) / 2
+                  : (constraints.maxWidth - 24) / 3;
+              final cards = [
+                _MetricCard(
+                  label: 'ไนโตรเจน (N)',
+                  value: latest?.modbusOk == true
+                      ? latest!.n.toStringAsFixed(0)
+                      : '--',
+                  unit: 'หน่วยเซนเซอร์',
+                  icon: Icons.eco_rounded,
+                  color: Colors.green,
+                ),
+                _MetricCard(
+                  label: 'ฟอสฟอรัส (P)',
+                  value: latest?.modbusOk == true
+                      ? latest!.p.toStringAsFixed(0)
+                      : '--',
+                  unit: 'หน่วยเซนเซอร์',
+                  icon: Icons.grass_rounded,
                   color: Colors.orange,
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _MetricCard(
-                  label: 'ความชื้นอากาศ',
-                  value: latest == null
-                      ? '--'
-                      : latest.humidity.toStringAsFixed(1),
-                  unit: '%',
-                  icon: Icons.water_drop_rounded,
+                _MetricCard(
+                  label: 'โพแทสเซียม (K)',
+                  value: latest?.modbusOk == true
+                      ? latest!.k.toStringAsFixed(0)
+                      : '--',
+                  unit: 'หน่วยเซนเซอร์',
+                  icon: Icons.spa_rounded,
                   color: Colors.blue,
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _MetricCard(
-                  label: 'pH ดิน',
-                  value: latest == null ? '--' : latest.ph.toStringAsFixed(1),
-                  unit: 'pH',
-                  icon: Icons.science_rounded,
-                  color: AppTheme.primaryGreen,
-                ),
-              ),
-            ],
+              ];
+              return Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  for (final card in cards)
+                    SizedBox(width: cardWidth, child: card),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 14),
 
           // ── NPK Bars ─────────────────────────────────────────────────────
-          _NpkCard(n: latest?.n, p: latest?.p, k: latest?.k),
+          _NpkCard(
+            n: latest?.modbusOk == true ? latest?.n : null,
+            p: latest?.modbusOk == true ? latest?.p : null,
+            k: latest?.modbusOk == true ? latest?.k : null,
+          ),
           const SizedBox(height: 14),
 
           // ── History Chart ────────────────────────────────────────────────
@@ -153,7 +166,7 @@ class SoilMonitoringScreen extends ConsumerWidget {
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'เซ็นเซอร์ RS485 ไม่ตอบสนอง — ค่า pH และ NPK อาจไม่แม่นยำ กรุณาตรวจสอบสายไฟ',
+                      'เซ็นเซอร์ NPK ผ่าน RS485 ยังไม่ตอบสนอง กรุณาตรวจไฟเลี้ยง สาย A/B address และ baud rate',
                       style: TextStyle(fontSize: 13),
                     ),
                   ),
@@ -196,10 +209,15 @@ class _MonitorModePanelState extends ConsumerState<_MonitorModePanel> {
 
   Future<void> _loadFarms() async {
     try {
-      final rows = await _client.from('farms').select('id,name').order('created_at');
+      final rows = await _client
+          .from('farms')
+          .select('id,name')
+          .order('created_at');
       if (!mounted) return;
       setState(() {
-        _farms = (rows as List).map((row) => Map<String, dynamic>.from(row)).toList();
+        _farms = (rows as List)
+            .map((row) => Map<String, dynamic>.from(row))
+            .toList();
         _farmId = _farms.isEmpty ? null : _farms.first['id'] as String;
         _loading = false;
       });
@@ -213,10 +231,16 @@ class _MonitorModePanelState extends ConsumerState<_MonitorModePanel> {
     final farmId = _farmId;
     if (farmId == null) return;
     try {
-      final rows = await _client.from('plots').select('id,name').eq('farm_id', farmId).order('created_at');
+      final rows = await _client
+          .from('plots')
+          .select('id,name')
+          .eq('farm_id', farmId)
+          .order('created_at');
       if (!mounted) return;
       setState(() {
-        _plots = (rows as List).map((row) => Map<String, dynamic>.from(row)).toList();
+        _plots = (rows as List)
+            .map((row) => Map<String, dynamic>.from(row))
+            .toList();
         _plotId = null;
       });
       _configureStationary();
@@ -230,10 +254,9 @@ class _MonitorModePanelState extends ConsumerState<_MonitorModePanel> {
     if (_mode != _MonitorMode.stationary) {
       ref.read(soilLiveProvider.notifier).disableStationaryPersistence();
     } else if (farmId != null) {
-      ref.read(soilLiveProvider.notifier).configureStationary(
-        farmId: farmId,
-        plotId: _plotId,
-      );
+      ref
+          .read(soilLiveProvider.notifier)
+          .configureStationary(farmId: farmId, plotId: _plotId);
     }
   }
 
@@ -253,23 +276,31 @@ class _MonitorModePanelState extends ConsumerState<_MonitorModePanel> {
           position = await Geolocator.getCurrentPosition();
         }
       } catch (_) {}
-      await ref.read(soilLiveProvider.notifier).saveHandheld(
-        farmId: farmId,
-        plotId: _plotId,
-        deviceId: widget.latest?.device ?? 'handheld-01',
-        latitude: position?.latitude,
-        longitude: position?.longitude,
-      );
+      final result = await ref
+          .read(soilLiveProvider.notifier)
+          .saveHandheld(
+            farmId: farmId,
+            plotId: _plotId,
+            deviceId: widget.latest?.device ?? 'handheld-01',
+            latitude: position?.latitude,
+            longitude: position?.longitude,
+          );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('บันทึกค่าจากเครื่องพกพาแล้ว')),
+          SnackBar(
+            content: Text(
+              result == SoilSaveResult.saved
+                  ? 'บันทึกค่าจากเครื่องพกพาแล้ว'
+                  : 'เก็บไว้ในเครื่องแล้ว ระบบจะส่งขึ้นเมื่ออินเทอร์เน็ตกลับมา',
+            ),
+          ),
         );
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('บันทึกไม่สำเร็จ: $error')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('บันทึกไม่สำเร็จ: $error')));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -284,12 +315,23 @@ class _MonitorModePanelState extends ConsumerState<_MonitorModePanel> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('แหล่งตรวจวัด', style: TextStyle(fontWeight: FontWeight.w800)),
+            const Text(
+              'แหล่งตรวจวัด',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
             const SizedBox(height: 10),
             SegmentedButton<_MonitorMode>(
               segments: const [
-                ButtonSegment(value: _MonitorMode.handheld, label: Text('เครื่องพกพา'), icon: Icon(Icons.handyman_outlined)),
-                ButtonSegment(value: _MonitorMode.stationary, label: Text('สถานีประจำแปลง'), icon: Icon(Icons.sensors_outlined)),
+                ButtonSegment(
+                  value: _MonitorMode.handheld,
+                  label: Text('เครื่องพกพา'),
+                  icon: Icon(Icons.handyman_outlined),
+                ),
+                ButtonSegment(
+                  value: _MonitorMode.stationary,
+                  label: Text('สถานีประจำแปลง'),
+                  icon: Icon(Icons.sensors_outlined),
+                ),
               ],
               selected: {_mode},
               onSelectionChanged: (value) {
@@ -307,7 +349,14 @@ class _MonitorModePanelState extends ConsumerState<_MonitorModePanel> {
               DropdownButtonFormField<String>(
                 value: _farmId,
                 decoration: const InputDecoration(labelText: 'ฟาร์ม'),
-                items: _farms.map((farm) => DropdownMenuItem<String>(value: farm['id'] as String, child: Text(farm['name'] as String))).toList(),
+                items: _farms
+                    .map(
+                      (farm) => DropdownMenuItem<String>(
+                        value: farm['id'] as String,
+                        child: Text(farm['name'] as String),
+                      ),
+                    )
+                    .toList(),
                 onChanged: (value) {
                   setState(() => _farmId = value);
                   _loadPlots();
@@ -315,11 +364,23 @@ class _MonitorModePanelState extends ConsumerState<_MonitorModePanel> {
               ),
               const SizedBox(height: 10),
               DropdownButtonFormField<String?>(
-                value: _plots.any((plot) => plot['id'] == _plotId) ? _plotId : null,
-                decoration: const InputDecoration(labelText: 'แปลงย่อย (ถ้ามี)'),
+                value: _plots.any((plot) => plot['id'] == _plotId)
+                    ? _plotId
+                    : null,
+                decoration: const InputDecoration(
+                  labelText: 'แปลงย่อย (ถ้ามี)',
+                ),
                 items: [
-                  const DropdownMenuItem<String?>(value: null, child: Text('ยังไม่ระบุแปลงย่อย')),
-                  ..._plots.map((plot) => DropdownMenuItem<String>(value: plot['id'] as String, child: Text(plot['name'] as String))),
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('ยังไม่ระบุแปลงย่อย'),
+                  ),
+                  ..._plots.map(
+                    (plot) => DropdownMenuItem<String>(
+                      value: plot['id'] as String,
+                      child: Text(plot['name'] as String),
+                    ),
+                  ),
                 ],
                 onChanged: (value) {
                   setState(() => _plotId = value);
@@ -329,16 +390,32 @@ class _MonitorModePanelState extends ConsumerState<_MonitorModePanel> {
               const SizedBox(height: 10),
               if (_mode == _MonitorMode.handheld)
                 FilledButton.icon(
-                  onPressed: widget.latest == null || _saving ? null : _saveHandheld,
-                  icon: _saving ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.save_outlined),
+                  onPressed: widget.latest == null || _saving
+                      ? null
+                      : _saveHandheld,
+                  icon: _saving
+                      ? const SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save_outlined),
                   label: const Text('บันทึกค่าจุดนี้พร้อม GPS'),
                 )
               else
-                const Text('เมื่อเลือกฟาร์มแล้ว ค่าจาก MQTT จะถูกบันทึกอัตโนมัติ', style: TextStyle(color: AppTheme.textSecondary)),
+                const Text(
+                  'เมื่อเลือกฟาร์มแล้ว ค่าจาก MQTT จะถูกบันทึกอัตโนมัติ',
+                  style: TextStyle(color: AppTheme.textSecondary),
+                ),
             ],
             if (_farmId != null && widget.latest != null) ...[
               const SizedBox(height: 8),
-              Text('พร้อมบันทึกจาก ${widget.latest!.device}', style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+              Text(
+                'พร้อมบันทึกจาก ${widget.latest!.device}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.textSecondary,
+                ),
+              ),
             ],
           ],
         ),
@@ -429,7 +506,7 @@ class _DataSourceBadge extends StatelessWidget {
                   ),
                 ),
                 const Text(
-                  '🔧 แหล่งข้อมูล: ESP32 + MAX485 + 7-in-1 NPK Modbus Sensor',
+                  '🔧 แหล่งข้อมูล: ESP32 + MAX485 + NPK-only Modbus Sensor',
                   style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
                 ),
               ],
@@ -449,7 +526,43 @@ class _DataSourceBadge extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Moisture Gauge
+//  NPK-only sensor notice
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _NpkOnlyInfoCard extends StatelessWidget {
+  const _NpkOnlyInfoCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: AppTheme.primaryGreen.withValues(alpha: 0.08),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.science_outlined, color: AppTheme.primaryGreen),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'เซ็นเซอร์ที่เชื่อมต่อเป็นรุ่น NPK เท่านั้น\n'
+                'อ่านได้เฉพาะ N, P และ K จาก Modbus จึงไม่มีค่า pH ความชื้น อุณหภูมิ หรือ EC จากอุปกรณ์นี้',
+                style: const TextStyle(
+                  fontSize: 13,
+                  height: 1.45,
+                  color: AppTheme.textSecondary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Legacy moisture gauge (kept for compatibility with older layouts)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _MoistureGaugeCard extends StatelessWidget {
@@ -811,21 +924,20 @@ class _HistoryChartCard extends StatelessWidget {
   });
 
   double _val(SensorData d) => switch (metric) {
-    SoilChartMetric.soil => d.soil.toDouble(),
-    SoilChartMetric.temperature => d.temperature,
-    SoilChartMetric.humidity => d.humidity,
-    SoilChartMetric.ph => d.ph,
+    SoilChartMetric.nitrogen => d.n,
+    SoilChartMetric.phosphorus => d.p,
+    SoilChartMetric.potassium => d.k,
   };
 
   (String, Color) get _meta => switch (metric) {
-    SoilChartMetric.soil => ('ความชื้น %', AppTheme.primaryGreen),
-    SoilChartMetric.temperature => ('อุณหภูมิ °C', Colors.orange),
-    SoilChartMetric.humidity => ('ความชื้นอากาศ %', Colors.blue),
-    SoilChartMetric.ph => ('pH', Colors.purple),
+    SoilChartMetric.nitrogen => ('ไนโตรเจน N', Colors.green),
+    SoilChartMetric.phosphorus => ('ฟอสฟอรัส P', Colors.orange),
+    SoilChartMetric.potassium => ('โพแทสเซียม K', Colors.blue),
   };
 
   @override
   Widget build(BuildContext ctx) {
+    final validHistory = history.where((d) => d.modbusOk).toList();
     final (label, color) = _meta;
     return Card(
       child: Padding(
@@ -836,7 +948,7 @@ class _HistoryChartCard extends StatelessWidget {
             Row(
               children: [
                 Text(
-                  'ประวัติ ${history.length} ค่าล่าสุด',
+                  'ประวัติ ${validHistory.length} ค่าที่อ่านได้จริง',
                   style: const TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 13,
@@ -852,16 +964,18 @@ class _HistoryChartCard extends StatelessWidget {
             const SizedBox(height: 10),
             SegmentedButton<SoilChartMetric>(
               segments: const [
-                ButtonSegment(value: SoilChartMetric.soil, label: Text('ดิน')),
                 ButtonSegment(
-                  value: SoilChartMetric.temperature,
-                  label: Text('อุณหภูมิ'),
+                  value: SoilChartMetric.nitrogen,
+                  label: Text('N'),
                 ),
                 ButtonSegment(
-                  value: SoilChartMetric.humidity,
-                  label: Text('ชื้น'),
+                  value: SoilChartMetric.phosphorus,
+                  label: Text('P'),
                 ),
-                ButtonSegment(value: SoilChartMetric.ph, label: Text('pH')),
+                ButtonSegment(
+                  value: SoilChartMetric.potassium,
+                  label: Text('K'),
+                ),
               ],
               selected: {metric},
               onSelectionChanged: (s) => onMetricChanged(s.first),
@@ -870,7 +984,7 @@ class _HistoryChartCard extends StatelessWidget {
             const SizedBox(height: 14),
             SizedBox(
               height: 180,
-              child: history.length < 2
+              child: validHistory.length < 2
                   ? Center(
                       child: Text(
                         'กำลังเก็บข้อมูล...\nกราฟจะแสดงเมื่อได้รับข้อมูลสักครู่',
@@ -878,7 +992,7 @@ class _HistoryChartCard extends StatelessWidget {
                         style: const TextStyle(color: AppTheme.textSecondary),
                       ),
                     )
-                  : _buildChart(color, label),
+                  : _buildChart(color, label, validHistory),
             ),
           ],
         ),
@@ -886,10 +1000,10 @@ class _HistoryChartCard extends StatelessWidget {
     );
   }
 
-  Widget _buildChart(Color color, String label) {
+  Widget _buildChart(Color color, String label, List<SensorData> chartHistory) {
     final spots = [
-      for (var i = 0; i < history.length; i++)
-        FlSpot(i.toDouble(), _val(history[i])),
+      for (var i = 0; i < chartHistory.length; i++)
+        FlSpot(i.toDouble(), _val(chartHistory[i])),
     ];
     final vals = spots.map((s) => s.y);
     final minY = vals.reduce((a, b) => a < b ? a : b);
@@ -929,14 +1043,14 @@ class _HistoryChartCard extends StatelessWidget {
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              interval: (history.length / 4).clamp(1, 100).toDouble(),
+              interval: (chartHistory.length / 4).clamp(1, 100).toDouble(),
               getTitlesWidget: (v, _) {
                 final i = v.toInt();
-                if (i < 0 || i >= history.length) return const SizedBox();
+                if (i < 0 || i >= chartHistory.length) return const SizedBox();
                 return Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(
-                    DateFormat('HH:mm:ss').format(history[i].receivedAt),
+                    DateFormat('HH:mm:ss').format(chartHistory[i].receivedAt),
                     style: const TextStyle(
                       fontSize: 9,
                       color: AppTheme.textSecondary,

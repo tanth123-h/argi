@@ -7,10 +7,10 @@ class AppTheme {
   AppTheme._();
 
   // Brand colours
-  static const primaryGreen = Color(0xFF10B981);
-  static const primaryGreenLight = Color(0xFFD1FAE5);
-  static const primaryGreenDark = Color(0xFF059669);
-  static const secondaryBrown = Color(0xFF78350F);
+  static const primaryGreen = Color(0xFF13B982);
+  static const primaryGreenLight = Color(0xFFDDF6E6);
+  static const primaryGreenDark = Color(0xFF075B45);
+  static const secondaryBrown = Color(0xFFB8663D);
   static const secondaryBrownLight = Color(0xFFFEF3C7);
 
   // Status colours
@@ -19,8 +19,8 @@ class AppTheme {
   static const statusPoor = Color(0xFFEF4444);       // score 0–39
 
   // Neutral
-  static const background = Color(0xFFF9FAFB);
-  static const surface = Color(0xFFFFFFFF);
+  static const background = Color(0xFFF4F7F0);
+  static const surface = Color(0xFFFFFEFA);
   static const textPrimary = Color(0xFF111827);
   static const textSecondary = Color(0xFF6B7280);
   static const divider = Color(0xFFE5E7EB);
@@ -54,7 +54,7 @@ class AppTheme {
 
       // AppBar
       appBarTheme: const AppBarTheme(
-        backgroundColor: surface,
+        backgroundColor: fieldPaper,
         foregroundColor: textPrimary,
         elevation: 0,
         centerTitle: true,
@@ -79,10 +79,10 @@ class AppTheme {
       // Card
       cardTheme: CardThemeData(
         color: surface,
-        elevation: 2,
+        elevation: 1,
         shadowColor: Colors.black12,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
         ),
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       ),

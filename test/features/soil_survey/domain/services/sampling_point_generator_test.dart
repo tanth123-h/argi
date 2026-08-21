@@ -20,4 +20,31 @@ void main() {
     expect(points.every((p) => p.longitude >= 100 && p.longitude <= 100.01), isTrue);
     expect(points.map((p) => p.id).toSet(), hasLength(5));
   });
+
+  test('recommended count scales with farm area and has a small-farm minimum', () {
+    expect(SamplingPointGenerator.recommendedCount(1), 5);
+    expect(SamplingPointGenerator.recommendedCount(10), 15);
+    expect(SamplingPointGenerator.recommendedCount(50), 60);
+  });
+
+  test('does not collapse a multi-point field survey into one line', () {
+    final points = SamplingPointGenerator().generate(
+      plotId: 'plot-2',
+      boundary: const [
+        LatLng(14, 100),
+        LatLng(14, 100.02),
+        LatLng(14.01, 100.02),
+        LatLng(14.01, 100),
+      ],
+      count: 14,
+    );
+
+    expect(points, hasLength(14));
+    expect(points.map((p) => p.longitude).toSet().length, greaterThan(1));
+    expect(points.map((p) => p.latitude).toSet().length, greaterThan(1));
+    expect(
+      points.map((p) => '${p.latitude},${p.longitude}').toSet(),
+      hasLength(14),
+    );
+  });
 }

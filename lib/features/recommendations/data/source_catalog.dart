@@ -30,6 +30,16 @@ class SourceCatalog {
     reviewedAt: DateTime(2026, 8, 12),
   );
 
+  static final cassavaSpacing = SourceReference(
+    title: 'การเปรียบเทียบผลผลิตมันสำปะหลังภายใต้ระยะปลูก 80 × 80 ซม.',
+    publisher: 'กรมวิชาการเกษตร',
+    url: Uri.parse(
+      'https://info.doa.go.th/research/index.php?act=view_detail&id=2115',
+    ),
+    topic: 'cassava planting material and spacing',
+    reviewedAt: DateTime(2026, 8, 17),
+  );
+
   static final departmentOfAgriculture = SourceReference(
     title: 'กรมวิชาการเกษตร: หน่วยงานและงานวิจัยด้านการเกษตร',
     publisher: 'กรมวิชาการเกษตร',
@@ -66,6 +76,7 @@ class SourceCatalog {
     riceWaterRequirements,
     riceCropWaterNeeds,
     riceSpacing,
+    cassavaSpacing,
     departmentOfAgriculture,
     officialSoilGuidance,
     agriculturalEconomics,

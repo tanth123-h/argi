@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:chaona_app/app/theme.dart';
 import 'package:chaona_app/features/ai_chat/data/services/gemini_service.dart';
 import 'package:chaona_app/features/soil_monitoring/presentation/providers/soil_live_provider.dart';
+import 'package:chaona_app/shared/widgets/mascot_companion.dart';
 
 // ── State ──────────────────────────────────────────────────────────────────
 
@@ -138,15 +139,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       appBar: AppBar(
         title: Row(
           children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: AppTheme.primaryGreen,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.smart_toy, color: Colors.white, size: 20),
-            ),
+            const MascotCompanion(mood: MascotMood.neutral, size: 40),
             const SizedBox(width: 10),
             const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -246,15 +239,7 @@ class _MessageBubble extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isUser) ...[
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: AppTheme.primaryGreen,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Icon(Icons.smart_toy, color: Colors.white, size: 18),
-            ),
+            const MascotCompanion(mood: MascotMood.neutral, size: 34),
             const SizedBox(width: 8),
           ],
           Flexible(
@@ -300,15 +285,7 @@ class _TypingIndicator extends StatelessWidget {
   Widget build(BuildContext ctx) {
     return Row(
       children: [
-        Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: AppTheme.primaryGreen,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: const Icon(Icons.smart_toy, color: Colors.white, size: 18),
-        ),
+        const MascotCompanion(mood: MascotMood.thinking, size: 36),
         const SizedBox(width: 8),
         Container(
           padding: const EdgeInsets.all(12),

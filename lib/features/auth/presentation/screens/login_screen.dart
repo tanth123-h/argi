@@ -56,9 +56,37 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               child: Form(
                 key: _formKey,
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  Container(height: 92, decoration: BoxDecoration(color: AppTheme.primaryGreenDark, borderRadius: BorderRadius.circular(28)), child: const Icon(Icons.grass, color: Colors.white, size: 54)),
+                  Container(
+                    height: 138,
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(28),
+                      border: Border.all(color: AppTheme.primaryGreen.withValues(alpha: 0.18)),
+                      boxShadow: const [
+                        BoxShadow(color: Color(0x120B6B4A), blurRadius: 18, offset: Offset(0, 8)),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Image.asset('assets/images/grow_a_garden_logo.png', width: 96, height: 96),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Grow a Garden', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800, color: AppTheme.primaryGreenDark)),
+                              const SizedBox(height: 4),
+                              Text('ปลูกให้ดีขึ้นด้วยข้อมูลจริง', style: Theme.of(context).textTheme.bodySmall),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 22),
-                  Text('ชาวนา AI', style: Theme.of(context).textTheme.displayMedium, textAlign: TextAlign.center),
+                  Text('ยินดีต้อนรับ', style: Theme.of(context).textTheme.displayMedium, textAlign: TextAlign.center),
                   const SizedBox(height: 6),
                   Text('ผู้ช่วยดูแลแปลงของคุณด้วยข้อมูลที่เข้าใจง่าย', style: Theme.of(context).textTheme.bodyMedium, textAlign: TextAlign.center),
                   const SizedBox(height: 32),

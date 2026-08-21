@@ -4,6 +4,14 @@ import '../entities/sampling_point.dart';
 enum SamplingPattern { zigzag, grid }
 
 class SamplingPointGenerator {
+  /// Field-screening recommendation based on LDD guidance of roughly
+  /// 15-20 points across a 10-20 rai management area. A laboratory composite
+  /// sample is still required for fertilizer decisions.
+  static int recommendedCount(double areaRai) {
+    final points = (areaRai * 1.5).ceil();
+    return points.clamp(5, 60).toInt();
+  }
+
   List<SamplingPoint> generate({
     required String plotId,
     required List<LatLng> boundary,
@@ -16,7 +24,9 @@ class SamplingPointGenerator {
     final maxLat = boundary.map((p) => p.latitude).reduce((a, b) => a > b ? a : b);
     final minLng = boundary.map((p) => p.longitude).reduce((a, b) => a < b ? a : b);
     final maxLng = boundary.map((p) => p.longitude).reduce((a, b) => a > b ? a : b);
-    final rows = pattern == SamplingPattern.grid ? count.ceilSqrt() : count;
+    // Keep both grid and zigzag layouts balanced. Using `count` rows with one
+    // column made large fields look like a single line of sampling points.
+    final rows = count.ceilSqrt();
     final columns = (count / rows).ceil();
     final candidates = <LatLng>[];
 
@@ -38,15 +48,20 @@ class SamplingPointGenerator {
       boundary.map((p) => p.latitude).reduce((a, b) => a + b) / boundary.length,
       boundary.map((p) => p.longitude).reduce((a, b) => a + b) / boundary.length,
     );
-    var fallbackIndex = 0;
-    while (candidates.length < count && fallbackIndex < boundary.length * 4) {
-      final edge = boundary[fallbackIndex % boundary.length];
-      final candidate = LatLng(
-        center.latitude + (edge.latitude - center.latitude) * 0.5,
-        center.longitude + (edge.longitude - center.longitude) * 0.5,
-      );
-      if (_contains(boundary, candidate)) candidates.add(candidate);
-      fallbackIndex++;
+    // A narrow or rotated field can reject most bounding-box grid points.
+    // Use several rings from the centroid, while de-duplicating coordinates.
+    for (var ring = 1; candidates.length < count && ring <= 8; ring++) {
+      final factor = ring / 9;
+      for (final edge in boundary) {
+        if (candidates.length >= count) break;
+        final candidate = LatLng(
+          center.latitude + (edge.latitude - center.latitude) * factor,
+          center.longitude + (edge.longitude - center.longitude) * factor,
+        );
+        if (_contains(boundary, candidate) && !_containsDuplicate(candidates, candidate)) {
+          candidates.add(candidate);
+        }
+      }
     }
 
     return [
@@ -60,6 +75,12 @@ class SamplingPointGenerator {
         ),
     ];
   }
+
+  bool _containsDuplicate(List<LatLng> points, LatLng candidate) => points.any(
+        (point) =>
+            (point.latitude - candidate.latitude).abs() < 0.0000001 &&
+            (point.longitude - candidate.longitude).abs() < 0.0000001,
+      );
 
   bool _contains(List<LatLng> polygon, LatLng point) {
     var inside = false;

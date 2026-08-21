@@ -6,7 +6,9 @@ import 'package:latlong2/latlong.dart';
 import 'dart:math' as math;
 
 import 'package:chaona_app/app/theme.dart';
+import 'package:chaona_app/shared/widgets/reliable_satellite_layer.dart';
 import 'package:chaona_app/features/farm_management/domain/entities/farm.dart';
+import 'package:chaona_app/features/recommendations/domain/services/planting_guidance.dart';
 
 // ---------------------------------------------------------------------------
 // Provider: holds the list of drawn polygon points
@@ -173,11 +175,7 @@ class _FarmMapScreenState extends ConsumerState<FarmMapScreen> {
               onTap: _onTap,
             ),
             children: [
-              TileLayer(
-                urlTemplate:
-                    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-                userAgentPackageName: 'com.chaona.app',
-              ),
+              reliableSatelliteLayer(),
               PolygonLayer(
                 polygons: [
                   if (pts.length >= 3)
@@ -301,7 +299,13 @@ class _FarmMapScreenState extends ConsumerState<FarmMapScreen> {
                                   ),
                                 );
                                 if (widget.isCreating) {
-                                  Navigator.pop(context, FarmMapDraft(points: pts, areaM2: area ?? 0));
+                                  Navigator.pop(
+                                    context,
+                                    FarmMapDraft(
+                                      points: pts,
+                                      areaM2: area ?? 0,
+                                    ),
+                                  );
                                 } else {
                                   Navigator.pop(context, pts);
                                 }
@@ -331,13 +335,19 @@ class _FarmMapScreenState extends ConsumerState<FarmMapScreen> {
     double pSpacing,
     double rSpacing,
   ) {
+    final guidance = PlantingGuidance.forCrop(widget.farm.cropType);
+    if (guidance != null) {
+      ref.read(_plantSpacingProvider.notifier).state = guidance.plantSpacingCm;
+      ref.read(_rowSpacingProvider.notifier).state = guidance.rowSpacingCm;
+    }
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => _PlantingSheet(area: area),
+      builder: (_) =>
+          _PlantingSheet(area: area, cropType: widget.farm.cropType),
     );
   }
 }
@@ -443,7 +453,8 @@ class _ToolButton extends StatelessWidget {
 // ---------------------------------------------------------------------------
 class _PlantingSheet extends ConsumerWidget {
   final double area;
-  const _PlantingSheet({required this.area});
+  final String cropType;
+  const _PlantingSheet({required this.area, required this.cropType});
 
   int _plants(double p, double r) => ((area) / ((p / 100) * (r / 100))).floor();
 
@@ -453,6 +464,7 @@ class _PlantingSheet extends ConsumerWidget {
     final rSpacing = ref.watch(_rowSpacingProvider);
     final plants = _plants(pSpacing, rSpacing);
     final areaRai = area / 1600;
+    final guidance = PlantingGuidance.forCrop(cropType);
 
     return Padding(
       padding: EdgeInsets.only(
@@ -478,6 +490,25 @@ class _PlantingSheet extends ConsumerWidget {
           ),
           const SizedBox(height: 20),
           Text('แผนการปลูก', style: Theme.of(ctx).textTheme.headlineSmall),
+          if (guidance != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              '${guidance.cropName} • ${guidance.plantingMaterial}',
+              style: Theme.of(ctx).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(guidance.note, style: Theme.of(ctx).textTheme.bodySmall),
+            const SizedBox(height: 6),
+            Text(
+              'อ้างอิง: ${guidance.source.publisher} • ${guidance.source.url}',
+              style: Theme.of(ctx).textTheme.bodySmall,
+            ),
+          ] else ...[
+            const SizedBox(height: 8),
+            const Text(
+              'ยังไม่มีคำแนะนำระยะปลูกที่ผ่านการตรวจสอบสำหรับพืชชนิดนี้ ระบบจะแสดงเฉพาะการคำนวณจากค่าที่คุณเลือก',
+            ),
+          ],
           const SizedBox(height: 4),
           Text(
             'พื้นที่ ${areaRai.toStringAsFixed(2)} ไร่  •  ${(area).toStringAsFixed(0)} m²',

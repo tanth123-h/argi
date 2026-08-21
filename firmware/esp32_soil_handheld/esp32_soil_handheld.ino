@@ -1,187 +1,168 @@
 #include <Arduino.h>
-#include <HardwareSerial.h>
 #include <WiFi.h>
-#include <HTTPClient.h>
+#include <WiFiManager.h>
 #include <PubSubClient.h>
-#include <Wire.h>
-#include <LiquidCrystal_I2C.h>
+#include <HardwareSerial.h>
 
-// Fill these before Wi-Fi testing. Keep private credentials out of git.
-const char* WIFI_SSID = "YOUR_WIFI_NAME";
-const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
-const char* API_URL = ""; // Example: https://your-api.example.com/sensor/ingest
-const char* DEVICE_ID = "handheld-01";
-const char* MQTT_HOST = "broker.emqx.io";
-constexpr uint16_t MQTT_PORT = 1883;
-const char* MQTT_TOPIC = "farm/esp32/sensors";
+// Grow Scout handheld: AF333 soil NPK sensor over RS485.
+// The sensor must have its own 5-30 V supply. Do not power it from ESP32 3.3 V.
 
-constexpr int RS485_RX = 16;
-constexpr int RS485_TX = 17;
-constexpr int RS485_DIR = 4; // MAX485 DE and /RE tied together
-constexpr uint8_t SENSOR_ADDRESS = 0x01;
-constexpr uint32_t SENSOR_BAUD = 4800;
-
-HardwareSerial SensorSerial(2);
-LiquidCrystal_I2C lcd(0x27, 16, 2);
+HardwareSerial RS485(2);
 WiFiClient wifiClient;
 PubSubClient mqtt(wifiClient);
 
-struct SoilReading {
-  float moisture;
-  float temperature;
-  uint16_t ec;
-  float ph;
-  uint16_t nitrogen;
-  uint16_t phosphorus;
-  uint16_t potassium;
-};
+constexpr int RS485_RX = 16;
+constexpr int RS485_TX = 17;
+constexpr int RS485_DE_RE = 4;
+
+constexpr uint32_t SENSOR_BAUD = 4800;
+constexpr uint8_t SENSOR_ADDRESS = 1;
+constexpr uint16_t NPK_REGISTER = 0x0004;
+
+const char* MQTT_HOST = "broker.emqx.io";
+constexpr uint16_t MQTT_PORT = 1883;
+const char* MQTT_TOPIC = "farm/esp32/sensors";
+const char* DEVICE_ID = "grow-scout-01";
 
 uint16_t modbusCrc(const uint8_t* data, size_t length) {
   uint16_t crc = 0xFFFF;
-  for (size_t pos = 0; pos < length; pos++) {
-    crc ^= data[pos];
-    for (int bit = 0; bit < 8; bit++) {
+  for (size_t i = 0; i < length; i++) {
+    crc ^= data[i];
+    for (uint8_t bit = 0; bit < 8; bit++) {
       crc = (crc & 1) ? (crc >> 1) ^ 0xA001 : crc >> 1;
     }
   }
   return crc;
 }
 
-bool readRegisters(uint16_t start, uint16_t count, uint16_t* values) {
+bool readNpk(uint16_t& nitrogen, uint16_t& phosphorus, uint16_t& potassium) {
   uint8_t request[8] = {
       SENSOR_ADDRESS, 0x03,
-      static_cast<uint8_t>(start >> 8), static_cast<uint8_t>(start & 0xFF),
-      static_cast<uint8_t>(count >> 8), static_cast<uint8_t>(count & 0xFF),
-      0, 0};
+      static_cast<uint8_t>(NPK_REGISTER >> 8),
+      static_cast<uint8_t>(NPK_REGISTER & 0xFF),
+      0x00, 0x03, 0x00, 0x00};
+
   const uint16_t crc = modbusCrc(request, 6);
-  request[6] = crc & 0xFF;
-  request[7] = crc >> 8;
+  request[6] = static_cast<uint8_t>(crc & 0xFF);
+  request[7] = static_cast<uint8_t>(crc >> 8);
 
-  while (SensorSerial.available()) SensorSerial.read();
-  digitalWrite(RS485_DIR, HIGH);
+  while (RS485.available()) RS485.read();
+
+  digitalWrite(RS485_DE_RE, HIGH);
   delay(2);
-  SensorSerial.write(request, sizeof(request));
-  SensorSerial.flush();
-  digitalWrite(RS485_DIR, LOW);
+  RS485.write(request, sizeof(request));
+  RS485.flush();
+  digitalWrite(RS485_DE_RE, LOW);
 
-  const size_t expected = 5 + count * 2;
-  uint8_t response[32];
+  uint8_t response[11] = {};
   size_t received = 0;
   const unsigned long deadline = millis() + 1000;
-  while (millis() < deadline && received < expected) {
-    if (SensorSerial.available()) response[received++] = SensorSerial.read();
+  while (millis() < deadline && received < sizeof(response)) {
+    if (RS485.available()) response[received++] = RS485.read();
   }
-  if (received != expected || response[0] != SENSOR_ADDRESS || response[1] != 0x03 ||
-      response[2] != count * 2) return false;
 
-  const uint16_t receivedCrc = response[received - 2] | (response[received - 1] << 8);
-  if (modbusCrc(response, received - 2) != receivedCrc) return false;
-  for (uint16_t i = 0; i < count; i++) {
-    values[i] = (response[3 + i * 2] << 8) | response[4 + i * 2];
+  if (received != sizeof(response) || response[0] != SENSOR_ADDRESS ||
+      response[1] != 0x03 || response[2] != 6) {
+    return false;
   }
+
+  const uint16_t receivedCrc = response[9] | (response[10] << 8);
+  if (modbusCrc(response, 9) != receivedCrc) return false;
+
+  nitrogen = (response[3] << 8) | response[4];
+  phosphorus = (response[5] << 8) | response[6];
+  potassium = (response[7] << 8) | response[8];
   return true;
 }
 
-bool readSoil(SoilReading& reading) {
-  uint16_t registers[7];
-  if (!readRegisters(0x0000, 7, registers)) return false;
-  reading.moisture = registers[0] / 10.0f;
-  reading.temperature = static_cast<int16_t>(registers[1]) / 10.0f;
-  reading.ec = registers[2];
-  reading.ph = registers[3] / 10.0f;
-  reading.nitrogen = registers[4];
-  reading.phosphorus = registers[5];
-  reading.potassium = registers[6];
-  return true;
+void connectMqtt() {
+  while (!mqtt.connected()) {
+    String clientId = String(DEVICE_ID) + "-" +
+                      String((uint32_t)ESP.getEfuseMac(), HEX);
+    Serial.printf("Connecting MQTT broker %s:%u...\n", MQTT_HOST, MQTT_PORT);
+    if (mqtt.connect(clientId.c_str())) {
+      Serial.println("MQTT connected");
+      return;
+    }
+    Serial.printf("MQTT failed, state=%d. Retrying...\n", mqtt.state());
+    delay(3000);
+  }
 }
 
-void showReading(const SoilReading& reading) {
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("M:");
-  lcd.print(reading.moisture, 1);
-  lcd.print(" pH:");
-  lcd.print(reading.ph, 1);
-  lcd.setCursor(0, 1);
-  lcd.print("N:");
-  lcd.print(reading.nitrogen);
-  lcd.print(" P:");
-  lcd.print(reading.phosphorus);
-  lcd.print(" K:");
-  lcd.print(reading.potassium);
+void publishHeartbeat() {
+  String payload = "{\"device_id\":\"" + String(DEVICE_ID) +
+                   "\",\"source\":\"handheld\",\"modbus_ok\":false" +
+                   ",\"sensor_status\":\"not_read\",\"rssi\":" +
+                   String(WiFi.RSSI()) + "}";
+  mqtt.publish(MQTT_TOPIC, payload.c_str());
+  Serial.println("MQTT heartbeat published: " + payload);
 }
 
-void uploadReading(const SoilReading& reading) {
-  if (strlen(API_URL) == 0 || WiFi.status() != WL_CONNECTED) return;
-  HTTPClient http;
-  http.begin(API_URL);
-  http.addHeader("Content-Type", "application/json");
-  String json = "{\"device_id\":\"" + String(DEVICE_ID) +
-                "\",\"moisture\":" + String(reading.moisture, 1) +
-                ",\"temperature\":" + String(reading.temperature, 1) +
-                ",\"ec\":" + String(reading.ec) +
-                ",\"ph\":" + String(reading.ph, 1) +
-                ",\"nitrogen\":" + String(reading.nitrogen) +
-                ",\"phosphorus\":" + String(reading.phosphorus) +
-                ",\"potassium\":" + String(reading.potassium) + "}";
-  const int status = http.POST(json);
-  Serial.printf("Upload status: %d\n", status);
-  http.end();
-}
-
-void ensureMqtt() {
-  if (WiFi.status() != WL_CONNECTED || mqtt.connected()) return;
-  mqtt.setServer(MQTT_HOST, MQTT_PORT);
-  const String clientId = String(DEVICE_ID) + "-" + String((uint32_t)ESP.getEfuseMac(), HEX);
-  mqtt.connect(clientId.c_str());
-}
-
-void publishReading(const SoilReading& reading) {
-  ensureMqtt();
-  if (!mqtt.connected()) return;
-  String json = "{\"device_id\":\"" + String(DEVICE_ID) +
-                "\",\"moisture\":" + String(reading.moisture, 1) +
-                ",\"temperature\":" + String(reading.temperature, 1) +
-                ",\"ec\":" + String(reading.ec) +
-                ",\"ph\":" + String(reading.ph, 1) +
-                ",\"nitrogen\":" + String(reading.nitrogen) +
-                ",\"phosphorus\":" + String(reading.phosphorus) +
-                ",\"potassium\":" + String(reading.potassium) +
-                ",\"modbus_ok\":true}";
-  mqtt.publish(MQTT_TOPIC, json.c_str());
-  mqtt.loop();
+void publishNpk(uint16_t nitrogen, uint16_t phosphorus, uint16_t potassium) {
+  String payload = "{\"device_id\":\"" + String(DEVICE_ID) +
+                   "\",\"source\":\"handheld\",\"nitrogen\":" +
+                   String(nitrogen) + ",\"phosphorus\":" + String(phosphorus) +
+                   ",\"potassium\":" + String(potassium) +
+                   ",\"modbus_ok\":true,\"sensor_status\":\"read_ok\",\"rssi\":" +
+                   String(WiFi.RSSI()) + "}";
+  mqtt.publish(MQTT_TOPIC, payload.c_str());
+  Serial.println("MQTT published: " + payload);
 }
 
 void setup() {
   Serial.begin(115200);
-  pinMode(RS485_DIR, OUTPUT);
-  digitalWrite(RS485_DIR, LOW);
-  SensorSerial.begin(SENSOR_BAUD, SERIAL_8N1, RS485_RX, RS485_TX);
-  Wire.begin(21, 22);
-  lcd.init();
-  lcd.backlight();
-  lcd.print("Chaona sensor");
+  delay(500);
 
-  if (strlen(WIFI_SSID) > 0) {
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    const unsigned long deadline = millis() + 10000;
-    while (WiFi.status() != WL_CONNECTED && millis() < deadline) delay(250);
+  pinMode(RS485_DE_RE, OUTPUT);
+  digitalWrite(RS485_DE_RE, LOW);
+  RS485.begin(SENSOR_BAUD, SERIAL_8N1, RS485_RX, RS485_TX);
+
+  WiFi.mode(WIFI_STA);
+  WiFiManager wifiManager;
+  wifiManager.setConfigPortalTimeout(180);
+  if (!wifiManager.autoConnect("Grow-Scout-Setup")) {
+    Serial.println("Wi-Fi setup failed; restarting");
+    delay(1000);
+    ESP.restart();
   }
+
+  Serial.print("Wi-Fi connected, IP: ");
+  Serial.println(WiFi.localIP());
+  Serial.print("Wi-Fi RSSI: ");
+  Serial.println(WiFi.RSSI());
+
+  mqtt.setServer(MQTT_HOST, MQTT_PORT);
+  connectMqtt();
 }
 
 void loop() {
-  SoilReading reading{};
-  if (readSoil(reading)) {
-    Serial.printf("M %.1f%% T %.1fC EC %u pH %.1f N %u P %u K %u\n",
-                  reading.moisture, reading.temperature, reading.ec, reading.ph,
-                  reading.nitrogen, reading.phosphorus, reading.potassium);
-    showReading(reading);
-    uploadReading(reading);
-    publishReading(reading);
-  } else {
-    lcd.clear();
-    lcd.print("Sensor read fail");
-    Serial.println("Modbus read failed: check power, A/B, address, baud, CRC");
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("Wi-Fi disconnected; restarting setup");
+    delay(1000);
+    ESP.restart();
   }
-  delay(3000);
+  if (!mqtt.connected()) connectMqtt();
+  mqtt.loop();
+
+  static unsigned long lastHeartbeat = 0;
+  static unsigned long lastReading = 0;
+
+  if (millis() - lastReading >= 3000) {
+    lastReading = millis();
+    uint16_t nitrogen = 0, phosphorus = 0, potassium = 0;
+    if (readNpk(nitrogen, phosphorus, potassium)) {
+      Serial.printf("N = %u mg/kg | P = %u mg/kg | K = %u mg/kg\n",
+                    nitrogen, phosphorus, potassium);
+      Serial.println("สถานะ: อ่านค่าได้");
+      publishNpk(nitrogen, phosphorus, potassium);
+    } else {
+      Serial.println("ไม่มีเฟรม Modbus ที่ถูกต้อง: ตรวจไฟเซ็นเซอร์, A/B, address, baud และสาย MAX485");
+    }
+  }
+
+  if (millis() - lastHeartbeat >= 10000) {
+    lastHeartbeat = millis();
+    publishHeartbeat();
+  }
 }
+

@@ -12,6 +12,7 @@ import 'package:chaona_app/features/soil_monitoring/presentation/screens/soil_mo
 import 'package:chaona_app/features/soil_survey/presentation/screens/farm_soil_survey_screen.dart';
 import 'package:chaona_app/features/farm_management/domain/entities/farm.dart';
 import 'package:chaona_app/features/fertilizer_recommendation/presentation/screens/fertilizer_screen.dart';
+import 'package:chaona_app/features/weather_flood/presentation/screens/weather_flood_screen.dart';
 import 'package:chaona_app/shared/widgets/main_scaffold.dart';
 
 part 'router.g.dart';
@@ -75,6 +76,14 @@ GoRouter router(RouterRef ref) {
               GoRoute(
                 path: '/market',
                 builder: (ctx, s) => const MarketScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/weather-flood',
+                builder: (ctx, s) => const WeatherFloodScreen(),
               ),
             ],
           ),
