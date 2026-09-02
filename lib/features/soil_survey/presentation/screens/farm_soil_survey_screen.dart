@@ -47,6 +47,12 @@ class _FarmSoilSurveyScreenState extends ConsumerState<FarmSoilSurveyScreen> {
   }
 
   Future<void> _createSurvey() async {
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     if (_points.length != _recommendedCount) {
       setState(() {
         _loading = false;
@@ -156,7 +162,10 @@ class _FarmSoilSurveyScreenState extends ConsumerState<FarmSoilSurveyScreen> {
       body: _loading
           ? const MascotLoading(message: 'กำลังเตรียมจุดตรวจดิน...')
           : setupError
-          ? _ErrorState(message: _error ?? 'ไม่ทราบสาเหตุ')
+          ? _ErrorState(
+              message: _error ?? 'ไม่ทราบสาเหตุ',
+              onRetry: _createSurvey,
+            )
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
@@ -287,11 +296,12 @@ class _PointCard extends StatelessWidget {
           if (latest != null) ...[
             const SizedBox(height: 14),
             Wrap(spacing: 8, runSpacing: 8, children: [
-              _ReadingChip(label: 'ความชื้น', value: '${latest!.moisture.toStringAsFixed(1)}%'),
-              _ReadingChip(label: 'pH', value: latest!.ph.toStringAsFixed(2)),
-              _ReadingChip(label: 'N', value: latest!.n.toStringAsFixed(1)),
-              _ReadingChip(label: 'P', value: latest!.p.toStringAsFixed(1)),
-              _ReadingChip(label: 'K', value: latest!.k.toStringAsFixed(1)),
+              if (latest!.modbusOk) ...[
+                _ReadingChip(label: 'N', value: '${latest!.n.toStringAsFixed(1)} mg/kg'),
+                _ReadingChip(label: 'P', value: '${latest!.p.toStringAsFixed(1)} mg/kg'),
+                _ReadingChip(label: 'K', value: '${latest!.k.toStringAsFixed(1)} mg/kg'),
+              ] else
+                const Text('ยังไม่มีค่า N/P/K ที่ยืนยันได้จากเซนเซอร์'),
             ]),
             const SizedBox(height: 8),
             Text('ค่าจาก ${latest!.device} • รับข้อมูล ${latest!.receivedAt.toLocal()}', style: Theme.of(context).textTheme.bodySmall),
@@ -325,7 +335,8 @@ class _ReadingChip extends StatelessWidget {
 
 class _ErrorState extends StatelessWidget {
   final String message;
-  const _ErrorState({required this.message});
+  final VoidCallback? onRetry;
+  const _ErrorState({required this.message, this.onRetry});
   @override
   Widget build(BuildContext context) => Center(
     child: Padding(
@@ -337,9 +348,22 @@ class _ErrorState extends StatelessWidget {
           const SizedBox(height: 12),
           Text(message, textAlign: TextAlign.center),
           const SizedBox(height: 16),
-          OutlinedButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('กลับ'),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              OutlinedButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('กลับ'),
+              ),
+              if (onRetry != null) ...[
+                const SizedBox(width: 8),
+                FilledButton.icon(
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('ลองใหม่'),
+                ),
+              ],
+            ],
           ),
         ],
       ),

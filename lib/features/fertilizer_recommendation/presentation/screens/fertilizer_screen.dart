@@ -138,8 +138,9 @@ class _FertilizerScreenState extends ConsumerState<FertilizerScreen> {
         nitrogen: _soilN,
         phosphorus: _soilP,
         potassium: _soilK,
-        moisture: 60,
-        phLevel: 6.5,
+        // The current AF333 probe does not measure moisture or pH.
+        moisture: null,
+        phLevel: null,
         areaRai: _areaRai,
       );
       if (mounted) setState(() => _aiAdvice = advice);

@@ -87,8 +87,10 @@ class SoilMonitoringScreen extends ConsumerWidget {
           LayoutBuilder(
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 620;
+              // Three fixed-width cards do not fit reliably on narrow phones.
+              // Let each metric use the full row on mobile.
               final cardWidth = compact
-                  ? (constraints.maxWidth - 12) / 2
+                  ? constraints.maxWidth
                   : (constraints.maxWidth - 24) / 3;
               final cards = [
                 _MetricCard(
