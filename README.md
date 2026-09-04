@@ -1,16 +1,16 @@
-# 🌾 Argi - Smart Farm Management System
+# Grow a Garden - Smart Farm Management System
 
 A modern Flutter-based farm management application with GPS boundary mapping, area calculation, and intelligent planting strategy tools.
 
 ![Flutter](https://img.shields.io/badge/Flutter-3.44.7-blue)
 ![Supabase](https://img.shields.io/badge/Supabase-Backend-green)
-![Google Maps](https://img.shields.io/badge/Google%20Maps-Integration-red)
+![OpenStreetMap](https://img.shields.io/badge/OpenStreetMap-Integration-green)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
 ## 🌟 Features
 
 ### 🗺️ **Interactive Farm Mapping**
-- Draw farm boundaries directly on Google Maps
+- Draw farm boundaries directly on OpenStreetMap
 - Drag markers to fine-tune boundaries
 - Hybrid satellite + road view
 - GPS-accurate positioning
@@ -56,32 +56,27 @@ A modern Flutter-based farm management application with GPS boundary mapping, ar
 ### Prerequisites
 - Flutter SDK 3.x
 - Android Studio or VS Code
-- Google Maps API key
-- Supabase account (free)
 
 ### Installation
 
 1. **Clone & Install**
 ```bash
+git clone https://github.com/tanth123-h/argi.git
 cd c:\Users\tankh\Downloads\argi
 flutter pub get
 ```
 
-2. **Setup Supabase** (5 minutes)
-   - Create project at [supabase.com](https://supabase.com)
-   - Run SQL from `SUPABASE_SETUP.md`
-   - Update `lib/main.dart` with credentials
-
-3. **Setup Google Maps** (5 minutes)
-   - Get API key from [Google Cloud Console](https://console.cloud.google.com)
-   - Add to `android/local.properties`: `MAPS_API_KEY=your_key`
-
-4. **Run**
+2. **Run**
 ```bash
 flutter run
 ```
 
-**📖 See [QUICK_START.md](QUICK_START.md) for detailed instructions**
+The cloned app connects to the shared Grow a Garden backend. Create an account
+in the app; Row Level Security keeps each user's farm data private.
+
+**Read [CLONE_AND_RUN.md](CLONE_AND_RUN.md) before connecting an ESP32.** It
+also explains the optional independent-backend setup and the current shared
+MQTT prototype limitation.
 
 ## 🏗️ Architecture
 

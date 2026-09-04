@@ -1,71 +1,35 @@
-# 🚀 Argi - Quick Start Guide
+# Grow a Garden - Quick Start Guide
 
-Get your farm management app running in under 20 minutes!
+Run the app against the shared Grow a Garden backend in a few minutes.
 
 ## 📋 Prerequisites
 
 - Flutter SDK installed
 - Android Studio or VS Code with Flutter plugin
-- Google account (for Google Maps)
-- Supabase account (free tier)
 
-## ⚡ Quick Setup (4 Steps)
+## ⚡ Quick Setup (2 Steps)
 
-### Step 1: Install Dependencies (2 minutes)
+### Step 1: Clone and install dependencies
 
 ```bash
+git clone https://github.com/tanth123-h/argi.git
 cd c:\Users\tankh\Downloads\argi
 flutter pub get
 ```
 
-### Step 2: Setup Supabase (10 minutes)
-
-1. **Create Supabase Project**
-   - Go to [supabase.com](https://supabase.com/)
-   - Create new project
-   - Save your credentials
-
-2. **Create Database Tables**
-   - Open SQL Editor in Supabase
-   - Copy SQL from `SUPABASE_SETUP.md`
-   - Run all CREATE TABLE commands
-
-3. **Update Flutter App**
-   - Open `lib/main.dart`
-   - Replace:
-     ```dart
-     await Supabase.initialize(
-       url: 'YOUR_SUPABASE_URL',        // ← Paste here
-       anonKey: 'YOUR_SUPABASE_ANON_KEY', // ← Paste here
-     );
-     ```
-
-### Step 3: Setup Google Maps (5 minutes)
-
-1. **Get API Key**
-   - Go to [Google Cloud Console](https://console.cloud.google.com/)
-   - Enable Maps SDK for Android
-   - Create API key
-
-2. **Add to Project**
-   - Open `android/local.properties`
-   - Add: `MAPS_API_KEY=your_key_here`
-
-3. **Get SHA-1 (for restrictions)**
-   ```bash
-   keytool -list -v -keystore "%USERPROFILE%\.android\debug.keystore" -alias androiddebugkey -storepass android -keypass android
-   ```
-
-### Step 4: Run the App (3 minutes)
+### Step 2: Run the app
 
 ```bash
-# Clean and get dependencies
-flutter clean
-flutter pub get
-
 # Run on Android device/emulator
 flutter run
 ```
+
+Create an account from the app. The shared Supabase project separates each
+user's data through Row Level Security, so a clone does not need database
+setup or a Google Maps API key.
+
+For ESP32/MQTT use and the optional independent backend, read
+[CLONE_AND_RUN.md](CLONE_AND_RUN.md).
 
 ## 🎯 First Use
 

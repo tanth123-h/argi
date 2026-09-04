@@ -2,20 +2,22 @@
 class AppConstants {
   AppConstants._();
 
-  // Supabase — replace with real project credentials
+  // Shared Grow a Garden backend. The anon key is a public client key; access
+  // to farm data is enforced by Supabase Row Level Security.
   static const supabaseUrl = String.fromEnvironment(
     'SUPABASE_URL',
-    defaultValue: 'https://your-project.supabase.co',
+    defaultValue: 'https://xkuhehyjvyxpnfjmpkyg.supabase.co',
   );
   static const supabaseAnonKey = String.fromEnvironment(
     'SUPABASE_ANON_KEY',
-    defaultValue: 'your-anon-key',
+    defaultValue:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhrdWhlaHlqdnl4cG5mam1wa3lnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0MTkzMDMsImV4cCI6MjEwMTk5NTMwM30.73QMjpI1yz65dUTsbwP-iVsjUDXue7XBYxTwhiuJxf4',
   );
 
   // Backend function base URL (Supabase Edge Functions)
   static const backendBaseUrl = String.fromEnvironment(
     'BACKEND_BASE_URL',
-    defaultValue: 'https://your-project.supabase.co/functions/v1',
+    defaultValue: 'https://xkuhehyjvyxpnfjmpkyg.supabase.co/functions/v1',
   );
 
   // Google Gemini API Key

@@ -1,10 +1,17 @@
-# 🚀 START HERE - Argi Setup Guide
+# START HERE - Grow a Garden Setup Guide
 
 ## ⚡ Quick Overview
 
-You have a **complete farm management app** with GPS mapping! 
+You have a complete farm management app with GPS mapping.
 
-**Setup time: 15-20 minutes** ⏱️
+## Clone path (recommended)
+
+For the shared Grow a Garden app, do not create a new Supabase project or run
+the setup SQL. Clone the repository, run `flutter pub get`, then `flutter run`.
+Create an account in the app to get a private workspace protected by RLS.
+
+See [CLONE_AND_RUN.md](CLONE_AND_RUN.md) for the current instructions. The
+older self-hosting notes below are maintainer reference only.
 
 ## 📂 What You Have
 
