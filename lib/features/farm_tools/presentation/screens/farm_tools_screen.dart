@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:math' as math;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -15,7 +16,6 @@ import 'package:chaona_app/features/farm_tools/domain/farm_alerts.dart';
 import 'package:chaona_app/features/farm_tools/domain/farm_tools_calculators.dart';
 import 'package:chaona_app/features/farm_tools/data/farm_operations_repository.dart';
 import 'package:chaona_app/features/soil_monitoring/data/repositories/soil_reading_repository.dart';
-import 'package:chaona_app/features/soil_monitoring/data/repositories/device_calibration_repository.dart';
 import 'package:chaona_app/features/weather_flood/data/weather_flood_service.dart';
 import 'package:chaona_app/features/weather_flood/domain/entities/weather_flood_snapshot.dart';
 import 'package:chaona_app/shared/widgets/mascot_loading.dart';
@@ -334,66 +334,30 @@ class _FarmToolsScreenState extends State<FarmToolsScreen> {
   }
 
   Future<void> _calibrateDevice() async {
-    final farm = _farm;
     final deviceId = _readings.isEmpty
         ? null
         : _readings.last['device_id']?.toString();
-    if (farm == null || deviceId == null || deviceId.isEmpty) return;
-    final moisture = TextEditingController(text: '0');
-    final ph = TextEditingController(text: '0');
-    final ec = TextEditingController(text: '1');
-    final save = await showDialog<bool>(
+    if (_farm == null || deviceId == null || deviceId.isEmpty) return;
+    await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('ปรับเทียบ $deviceId'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _field(moisture, 'ชดเชยความชื้น (%)'),
-            _field(ph, 'ชดเชย pH'),
-            _field(ec, 'ตัวคูณ EC'),
-          ],
+        title: Text('ตรวจสอบเซนเซอร์ $deviceId'),
+        content: const SingleChildScrollView(
+          child: Text(
+            'อุปกรณ์ AF333 ที่เชื่อมต่ออยู่เป็นเซนเซอร์ NPK ผ่าน RS485 และไม่มีค่าอ้างอิงสำหรับปรับเทียบความชื้น pH หรือ EC ในแอปนี้\n\n'
+            'ก่อนใช้งานจริง:\n'
+            '1. จ่ายไฟให้เซนเซอร์ตามฉลากของรุ่น\n'
+            '2. ตรวจสาย A/B และกราวด์ร่วม\n'
+            '3. วัดดินซ้ำ 2–3 ครั้งในจุดเดียวกัน\n'
+            '4. เปรียบเทียบกับผลแล็บหรือชุดมาตรฐานก่อนใช้ตัดสินใจใส่ปุ๋ย\n\n'
+            'ค่าที่แสดงในแอปเป็นค่าคัดกรอง N/P/K ไม่ใช่ผลรับรองจากห้องปฏิบัติการ',
+          ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('ยกเลิก'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('บันทึก'),
-          ),
+          FilledButton(onPressed: () => Navigator.pop(context), child: const Text('เข้าใจแล้ว')),
         ],
       ),
     );
-    if (save == true) {
-      final multiplier = double.tryParse(ec.text) ?? 0;
-      if (multiplier <= 0) {
-        if (mounted)
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('ตัวคูณ EC ต้องมากกว่า 0')),
-          );
-      } else {
-        await DeviceCalibrationRepository(_client).save(
-          farmId: farm.id,
-          deviceId: deviceId,
-          moistureOffset: double.tryParse(moisture.text) ?? 0,
-          phOffset: double.tryParse(ph.text) ?? 0,
-          ecMultiplier: multiplier,
-        );
-        if (mounted)
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'บันทึกการปรับเทียบแล้ว ค่าครั้งถัดไปจะใช้การตั้งค่านี้',
-              ),
-            ),
-          );
-      }
-    }
-    moisture.dispose();
-    ph.dispose();
-    ec.dispose();
   }
 
   Future<void> _pickLeaf() async {
@@ -480,7 +444,7 @@ class _FarmToolsScreenState extends State<FarmToolsScreen> {
             ),
             pw.SizedBox(height: 12),
             pw.Text(
-              'ความชื้นดินล่าสุด: ${_moisture?.toStringAsFixed(1) ?? '-'}%',
+              'N ล่าสุด: ${_readings.isEmpty ? '-' : _readings.last['nitrogen'] ?? '-'} mg/kg',
             ),
             pw.Text(
               'น้ำสุทธิที่คำนวณ: ${water.volumeM3PerDay.toStringAsFixed(2)} ลูกบาศก์เมตร/วัน',
@@ -551,7 +515,7 @@ class _FarmToolsScreenState extends State<FarmToolsScreen> {
             ),
           ),
       ],
-      _section(context, 'กราฟประวัติดิน', _moistureChart()),
+      _section(context, 'ประวัติข้อมูลจากเซนเซอร์', _moistureChart()),
       _section(context, 'แผนที่จุดตรวจดิน', _soilMap(farm)),
       _section(
         context,
@@ -721,17 +685,17 @@ class _FarmToolsScreenState extends State<FarmToolsScreen> {
 
   Widget _moistureChart() {
     final values = _readings
-        .map((row) => (row['moisture'] as num?)?.toDouble())
+        .map((row) => (row['nitrogen'] as num?)?.toDouble())
         .whereType<double>()
         .toList();
     if (values.length < 2)
-      return const Text('ต้องมีข้อมูล ESP32 อย่างน้อย 2 ครั้งจึงจะแสดงกราฟ');
+      return const Text('ต้องมีข้อมูล N อย่างน้อย 2 ครั้งจึงจะแสดงกราฟ');
     return SizedBox(
       height: 220,
       child: LineChart(
         LineChartData(
           minY: 0,
-          maxY: 100,
+          maxY: math.max(100, values.reduce((a, b) => a > b ? a : b) * 1.1),
           titlesData: const FlTitlesData(show: false),
           gridData: const FlGridData(show: true),
           lineBarsData: [
@@ -765,12 +729,9 @@ class _FarmToolsScreenState extends State<FarmToolsScreen> {
       final lat = (reading['latitude'] as num?)?.toDouble();
       final lng = (reading['longitude'] as num?)?.toDouble();
       if (lat == null || lng == null) continue;
-      final moisture = (reading['moisture'] as num?)?.toDouble() ?? 0;
-      final color = moisture < 20
-          ? Colors.red
-          : moisture < 30
-          ? Colors.orange
-          : const Color(0xFF2F7D58);
+      final nitrogen = (reading['nitrogen'] as num?)?.toDouble();
+      if (nitrogen == null) continue;
+      final color = const Color(0xFF2F7D58);
       markers.add(
         Marker(
           point: LatLng(lat, lng),
@@ -784,7 +745,7 @@ class _FarmToolsScreenState extends State<FarmToolsScreen> {
             ),
             child: Center(
               child: Text(
-                moisture.toStringAsFixed(0),
+                nitrogen.toStringAsFixed(0),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 10,

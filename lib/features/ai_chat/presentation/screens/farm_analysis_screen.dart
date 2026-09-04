@@ -69,10 +69,10 @@ class _FarmAnalysisScreenState extends State<FarmAnalysisScreen> {
       for (final farm in selected) {
         final readings = await SoilReadingRepository(_client).latestForFarm(farm.id);
         final reading = readings.isEmpty ? null : readings.first;
-        final weather = await _weather.fetch(_center(farm), soilMoisture: (reading?['moisture'] as num?)?.toDouble());
-        final soil = reading == null
+        final weather = await _weather.fetch(_center(farm));
+        final soil = reading == null || reading['modbus_ok'] != true
             ? 'ยังไม่มีข้อมูลตรวจดินจาก ESP32'
-            : 'ความชื้น=${reading['moisture'] ?? '-'}%, pH=${reading['ph'] ?? '-'}, EC=${reading['ec'] ?? '-'}, N=${reading['nitrogen'] ?? '-'}, P=${reading['phosphorus'] ?? '-'}, K=${reading['potassium'] ?? '-'}, เวลา=${reading['recorded_at'] ?? '-'}';
+            : 'เซนเซอร์ AF333 วัดเฉพาะ N/P/K: N=${reading['nitrogen'] ?? '-'}, P=${reading['phosphorus'] ?? '-'}, K=${reading['potassium'] ?? '-'} mg/kg, เวลา=${reading['recorded_at'] ?? '-'}';
         contexts.add('ฟาร์ม=${farm.name}, พืช=${farm.cropType}, พื้นที่=${farm.areaRai.toStringAsFixed(2)} ไร่\nอากาศ=${weather.temperatureC.toStringAsFixed(1)} C, ฝนตอนนี้=${weather.rainMm.toStringAsFixed(1)} mm, โอกาสฝน 24 ชม.=${weather.rainProbability24h}%\nความเสี่ยงแล้ง=${weather.droughtStatus.name}, ความเสี่ยงน้ำท่วม=${weather.floodStatus.name}\nดิน: $soil');
       }
       final result = await _gemini.chat(

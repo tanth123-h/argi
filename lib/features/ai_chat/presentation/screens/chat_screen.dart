@@ -64,10 +64,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   String _buildSoilContext() {
     final latest = ref.read(soilLiveProvider).latest;
     if (latest == null) return 'ยังไม่มีข้อมูลเซนเซอร์ ESP32 ล่าสุด';
-    return 'อุปกรณ์=${latest.device}, N=${latest.n.toStringAsFixed(0)}, '
-        'P=${latest.p.toStringAsFixed(0)}, K=${latest.k.toStringAsFixed(0)} mg/kg, '
-        'ความชื้น=${latest.soil}%, อุณหภูมิ=${latest.temperature.toStringAsFixed(1)} C, '
-        'pH=${latest.ph.toStringAsFixed(1)}, เวลา=${latest.receivedAt.toIso8601String()}';
+    final values = latest.modbusOk
+        ? 'N=${latest.n.toStringAsFixed(0)}, P=${latest.p.toStringAsFixed(0)}, K=${latest.k.toStringAsFixed(0)} mg/kg'
+        : 'ยังไม่มีค่า N/P/K ที่ยืนยันได้';
+    return 'อุปกรณ์=${latest.device}, สถานะอ่าน Modbus=${latest.modbusOk ? 'สำเร็จ' : 'ไม่สำเร็จ'}, $values, '
+        'เซนเซอร์นี้วัดเฉพาะ N/P/K ไม่ได้วัด pH ความชื้น อุณหภูมิ หรือ EC, '
+        'เวลา=${latest.receivedAt.toIso8601String()}';
   }
 
   String _buildFarmContext() {
@@ -262,7 +264,7 @@ class _MessageBubble extends StatelessWidget {
                 ],
               ),
               child: Text(
-                message.content,
+                _cleanAssistantText(message.content, isUser),
                 style: TextStyle(
                   fontSize: 15,
                   color: isUser ? Colors.white : AppTheme.textPrimary,
@@ -275,6 +277,25 @@ class _MessageBubble extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  static String _cleanAssistantText(String input, bool isUser) {
+    if (isUser) return input;
+    var text = input
+        .replaceAll('noObservedFeature', 'ยังไม่พบสัญญาณความเสี่ยง')
+        .replaceAll('observedFeature', 'พบสัญญาณความเสี่ยง')
+        .replaceAll('unavailable', 'ยังไม่มีข้อมูล')
+        .replaceAll('noData', 'ยังไม่มีข้อมูล')
+        .replaceAll(RegExp(r'\*\*([^*]+)\*\*'), r'\1')
+        .replaceAll(RegExp(r'__([^_]+)__'), r'\1')
+        .replaceAll(RegExp(r'^\s*#{1,6}\s*', multiLine: true), '')
+        .replaceAll(RegExp(r'^\s*[-*_]{3,}\s*$', multiLine: true), '')
+        .replaceAll(RegExp(r'^\s*[-*]\s+', multiLine: true), '• ');
+    return text
+        .split('\n')
+        .map((line) => line.trimRight())
+        .where((line) => line.trim().isNotEmpty)
+        .join('\n');
   }
 }
 

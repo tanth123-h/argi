@@ -19,7 +19,7 @@ create table if not exists public.soil_surveys (
   farm_id uuid not null references public.farms(id) on delete cascade,
   status text not null default 'in_progress'
     check (status in ('in_progress', 'completed', 'cancelled')),
-  point_count integer not null default 5 check (point_count between 1 and 20),
+  point_count integer not null default 5 check (point_count between 1 and 60),
   started_at timestamptz not null default now(),
   completed_at timestamptz,
   created_at timestamptz not null default now()
@@ -29,7 +29,7 @@ create table if not exists public.soil_surveys (
 -- exactly 5 points). Replace it so the generator can scale with farm size.
 alter table public.soil_surveys drop constraint if exists soil_surveys_point_count_check;
 alter table public.soil_surveys add constraint soil_surveys_point_count_check
-  check (point_count between 1 and 20);
+  check (point_count between 1 and 60);
 
 create table if not exists public.soil_sampling_points (
   id uuid primary key default gen_random_uuid(),

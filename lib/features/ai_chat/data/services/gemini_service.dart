@@ -160,8 +160,8 @@ class GeminiService {
     required double nitrogen,
     required double phosphorus,
     required double potassium,
-    required double moisture,
-    required double phLevel,
+    double? moisture,
+    double? phLevel,
     required double areaRai,
     int daysAfterPlanting = 0,
   }) async {
@@ -174,12 +174,12 @@ class GeminiService {
 - พื้นที่: $areaRai ไร่
 - วันหลังปลูก: $daysAfterPlanting วัน
 - ค่าดิน: N=$nitrogen, P=$phosphorus, K=$potassium mg/kg
-- ความชื้น: $moisture%
-- pH: $phLevel
+${moisture == null ? '- ความชื้น: ไม่มีเซนเซอร์วัดความชื้น' : '- ความชื้น: $moisture%'}
+${phLevel == null ? '- pH: ไม่มีเซนเซอร์วัด pH' : '- pH: $phLevel'}
 
 กรุณาแนะนำ:
-1. ปุ๋ยที่ควรใส่ (ชื่อสูตร เช่น 16-20-0)
-2. ปริมาณต่อไร่ (กก.)
+1. ปุ๋ยที่ควรพิจารณา โดยอธิบายว่าเป็นคำแนะนำเบื้องต้นจาก N/P/K
+2. ปริมาณต่อไร่ (กก.) เฉพาะเมื่อมีข้อมูลอ้างอิงเพียงพอ
 3. วิธีและเวลาที่เหมาะสม
 4. ประมาณการต้นทุนปุ๋ย (บาทต่อไร่)
 5. คำเตือนหากค่าดินผิดปกติ
