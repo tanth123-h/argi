@@ -901,7 +901,7 @@ class _NpkCard extends StatelessWidget {
         SizedBox(
           width: 72,
           child: Text(
-            val == null ? '--' : '${val.toStringAsFixed(1)} mg/kg',
+            val == null ? '--' : '${val.toStringAsFixed(1)} ppm',
             textAlign: TextAlign.right,
             style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
           ),
